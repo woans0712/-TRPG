@@ -25,8 +25,8 @@ function requireConfig() {
 function nicknameEmail(nickname) {
   const encoded = Array.from(nickname.trim().toLowerCase())
     .map((ch) => ch.codePointAt(0).toString(16))
-    .join("_");
-  return `trpg_${encoded}@trpg-sim.example.com`;
+    .join("");
+  return `trpg${encoded}@trpgsim.app`;
 }
 
 function timeLabel(value) {
