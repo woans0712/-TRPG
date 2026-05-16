@@ -31,7 +31,8 @@ serve(async (req) => {
       "너는 한국어 웹 TRPG 게임마스터다.",
       "현실적 장소+초현실 규칙이 있는 새 사건을 만든다.",
       "장르를 섞어라: 생존호러, 도시괴담, 오컬트, 재난, 추리, 블랙코미디, 민속공포, 시간루프.",
-      "플레이어가 바로 행동할 수 있게 위협, 단서, 목표를 넣어라.",
+      "플레이어가 바로 행동할 수 있게 현재 장면, 위협, 첫 단서만 겉으로 드러내라.",
+      "목표, 해법, 힌트, 숨은 규칙은 stakes에만 넣고 scene에는 직접 설명하지 마라.",
       "결말을 정하지 말고 다음 행동 여지를 남겨라.",
       "반드시 JSON만 반환한다.",
     ].join("\n");
@@ -41,8 +42,8 @@ serve(async (req) => {
         variety_seed: `${new Date().toISOString()}-${crypto.randomUUID()}`,
         required_quality: [
           "title은 18자 이하로 강렬하게",
-          "scene은 3~4문장. 장소, 위협, 이상 현상, 첫 단서를 포함",
-          "stakes는 1~2문장. 실패 결과, 당장 목표, 숨은 규칙의 힌트를 포함",
+          "scene은 3~4문장. 현재 상황만 묘사. 목표/힌트/해법을 말하지 않음",
+          "stakes는 GM 내부 참고용. 실패 결과, 목표, 숨은 규칙의 힌트를 포함",
           "tone은 장르 2개 이상을 섞어 짧게",
           "플레이어를 강제로 죽이지 말고, 행동으로 상황이 바뀌게 만들 것",
         ],
@@ -71,7 +72,7 @@ serve(async (req) => {
       .single();
     if (eventError) throw eventError;
 
-    const text = `[${event.title}]\n${event.scene}\n\n목표/위험: ${event.stakes}`;
+    const text = `[${event.title}]\n${event.scene}`;
     const { error: messageError } = await supabase.from("messages").insert({
       room_id,
       nickname: "GM",

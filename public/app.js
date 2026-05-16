@@ -89,7 +89,7 @@ function render() {
 
   $("eventTitle").textContent = state.event?.title || "아직 사건 없음";
   $("eventScene").textContent = state.event?.scene || "새 이벤트를 시작하면 장면이 표시됩니다.";
-  $("eventStakes").textContent = state.event?.stakes ? `목표/위험: ${state.event.stakes}` : "";
+  $("eventStakes").textContent = "";
 
   const settings = state.room?.settings || {};
   $("autoEvents").checked = Boolean(settings.auto_events);
