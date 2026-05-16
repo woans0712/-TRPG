@@ -71,6 +71,8 @@ function render() {
   $("meStatus").textContent = state.profile.status || "정상";
   $("aiBadge").textContent = "GPT GM";
   $("clearMessagesBtn").classList.toggle("hidden", !isAdminProfile());
+  $("eventAdminPanel").classList.toggle("hidden", !isAdminProfile());
+  $("settingsAdminPanel").classList.toggle("hidden", !isAdminProfile());
 
   $("eventTitle").textContent = state.event?.title || "아직 사건 없음";
   $("eventScene").textContent = state.event?.scene || "새 이벤트를 시작하면 장면이 표시됩니다.";
@@ -85,7 +87,7 @@ function render() {
   state.profiles.forEach((profile) => {
     const chip = document.createElement("span");
     chip.className = "player-chip";
-    chip.textContent = `${profile.nickname} · HP ${profile.hp ?? 100}`;
+    chip.textContent = `${profile.nickname} · 접속중`;
     $("players").appendChild(chip);
   });
 
@@ -196,7 +198,8 @@ async function ensureProfile(nickname) {
 
 async function loadGame() {
   await ensureRoom();
-  await Promise.all([loadProfile(), loadProfiles(), loadEvent(), loadMessages()]);
+  await Promise.all([loadProfile(), loadEvent(), loadMessages()]);
+  state.profiles = [state.profile];
   subscribeRealtime();
 }
 
@@ -219,16 +222,6 @@ async function loadProfile() {
     .single();
   if (error) throw error;
   state.profile = data;
-}
-
-async function loadProfiles() {
-  const { data, error } = await state.supabase
-    .from("profiles")
-    .select("id,nickname,hp,status,updated_at")
-    .order("updated_at", { ascending: false })
-    .limit(24);
-  if (error) throw error;
-  state.profiles = data || [];
 }
 
 async function loadEvent() {
@@ -259,6 +252,18 @@ function subscribeRealtime() {
   if (state.channel) state.supabase.removeChannel(state.channel);
   state.channel = state.supabase
     .channel(`room:${state.room.id}`)
+    .on("presence", { event: "sync" }, () => {
+      const presenceState = state.channel.presenceState();
+      state.profiles = Object.values(presenceState)
+        .flat()
+        .map((presence) => ({
+          id: presence.user_id,
+          nickname: presence.nickname,
+        }))
+        .filter((profile, index, list) => profile.nickname && list.findIndex((item) => item.id === profile.id) === index)
+        .sort((a, b) => a.nickname.localeCompare(b.nickname, "ko"));
+      render();
+    })
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "messages", filter: `room_id=eq.${state.room.id}` },
@@ -274,8 +279,15 @@ function subscribeRealtime() {
       { event: "*", schema: "public", table: "rooms", filter: `id=eq.${state.room.id}` },
       loadRoomAndRender,
     )
-    .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, loadProfilesAndRender)
-    .subscribe();
+    .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, loadProfileAndRender)
+    .subscribe(async (status) => {
+      if (status === "SUBSCRIBED") {
+        await state.channel.track({
+          user_id: state.profile.id,
+          nickname: state.profile.nickname,
+        });
+      }
+    });
 }
 
 async function loadMessagesAndRender() {
@@ -293,8 +305,14 @@ async function loadRoomAndRender() {
   render();
 }
 
-async function loadProfilesAndRender() {
-  await Promise.all([loadProfile(), loadProfiles()]);
+async function loadProfileAndRender() {
+  await loadProfile();
+  if (state.channel) {
+    await state.channel.track({
+      user_id: state.profile.id,
+      nickname: state.profile.nickname,
+    });
+  }
   render();
 }
 
@@ -367,6 +385,7 @@ $("messageForm").addEventListener("submit", async (event) => {
 });
 
 $("startEventBtn").addEventListener("click", async () => {
+  if (!isAdminProfile()) return;
   if (state.busy) return;
   setBusy(true, "GM이 새 이벤트를 준비하는 중...");
   try {
@@ -382,6 +401,7 @@ $("startEventBtn").addEventListener("click", async () => {
 });
 
 $("saveSettingsBtn").addEventListener("click", async () => {
+  if (!isAdminProfile()) return;
   const settings = {
     ...(state.room?.settings || {}),
     auto_events: $("autoEvents").checked,

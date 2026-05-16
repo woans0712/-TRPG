@@ -19,6 +19,14 @@ serve(async (req) => {
     const { room_id, prompt } = await req.json();
     if (!room_id) throw new Error("room_id가 필요합니다.");
 
+    const adminClient = createClient(url, serviceKey);
+    const { data: profile, error: profileError } = await adminClient
+      .from("profiles")
+      .select("is_admin")
+      .eq("id", userData.user.id)
+      .single();
+    if (profileError || !profile?.is_admin) throw new Error("관리자만 이벤트를 시작할 수 있습니다.");
+
     const system =
       "너는 한국어 TRPG 게임마스터다. 개연성, 긴장감, 플레이어 선택의 여지를 중시한다. 반드시 JSON만 반환한다.";
     const event =
@@ -32,7 +40,7 @@ serve(async (req) => {
         },
       })) || fallbackEvent(prompt || "");
 
-    const supabase = createClient(url, serviceKey);
+    const supabase = adminClient;
     await supabase.from("events").update({ active: false }).eq("room_id", room_id).eq("active", true);
 
     const { data: inserted, error: eventError } = await supabase
