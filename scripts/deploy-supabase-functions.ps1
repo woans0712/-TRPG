@@ -15,4 +15,7 @@ Write-Host "Deploying start-event function"
 Write-Host "Deploying judge-action function"
 & $Supabase functions deploy judge-action
 
+Write-Host "Deploying clear-messages function"
+& $Supabase functions deploy clear-messages
+
 Write-Host "Done. Supabase Edge Functions are deployed."

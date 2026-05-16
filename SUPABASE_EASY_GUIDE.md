@@ -84,3 +84,24 @@ https://abcdefghijklmnop.supabase.co
 ```text
 abcdefghijklmnop
 ```
+
+## 관리자 지정
+
+채팅 기록 삭제 버튼은 `profiles.is_admin = true`인 계정에만 보입니다.
+
+1. 사이트에서 닉네임 `뚜비` / 비밀번호 `123123`으로 프로필 제작
+2. Supabase Dashboard > SQL Editor로 이동
+3. `supabase/admin-setup.sql` 내용을 실행
+
+관리자 SQL:
+
+```sql
+alter table public.profiles
+add column if not exists is_admin boolean not null default false;
+
+update public.profiles
+set is_admin = true
+where nickname = '뚜비';
+```
+
+실행 후 사이트를 새로고침하면 `뚜비` 계정에만 `기록 삭제` 버튼이 표시됩니다.

@@ -5,6 +5,7 @@ create table if not exists public.profiles (
   nickname text not null unique check (char_length(nickname) between 2 and 20),
   hp integer not null default 100 check (hp between 0 and 100),
   status text not null default '정상',
+  is_admin boolean not null default false,
   inventory jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

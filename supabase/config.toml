@@ -5,3 +5,6 @@ verify_jwt = true
 
 [functions.judge-action]
 verify_jwt = true
+
+[functions.clear-messages]
+verify_jwt = true

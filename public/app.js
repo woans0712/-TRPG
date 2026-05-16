@@ -38,6 +38,10 @@ function setAuthError(message) {
   $("authError").textContent = message || "";
 }
 
+function isAdminProfile(profile = state.profile) {
+  return Boolean(profile?.is_admin);
+}
+
 function render() {
   const loggedIn = Boolean(state.session && state.profile);
   $("authView").classList.toggle("hidden", loggedIn);
@@ -49,6 +53,7 @@ function render() {
   $("meHp").textContent = state.profile.hp ?? 100;
   $("meStatus").textContent = state.profile.status || "정상";
   $("aiBadge").textContent = "GPT GM";
+  $("clearMessagesBtn").classList.toggle("hidden", !isAdminProfile());
 
   $("eventTitle").textContent = state.event?.title || "아직 사건 없음";
   $("eventScene").textContent = state.event?.scene || "새 이벤트를 시작하면 장면이 표시됩니다.";
@@ -349,6 +354,23 @@ $("saveSettingsBtn").addEventListener("click", async () => {
   if (error) alert(error.message);
   await ensureRoom();
   render();
+});
+
+$("clearMessagesBtn").addEventListener("click", async () => {
+  if (!isAdminProfile()) return;
+  const ok = confirm("채팅 기록을 모두 삭제할까요? 이 작업은 되돌릴 수 없습니다.");
+  if (!ok) return;
+
+  $("clearMessagesBtn").disabled = true;
+  try {
+    await callFunction("clear-messages", { room_id: state.room.id });
+    await loadMessages();
+    render();
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    $("clearMessagesBtn").disabled = false;
+  }
 });
 
 init();
