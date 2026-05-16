@@ -1,0 +1,7 @@
+project_id = "trpg-simulator"
+
+[functions.start-event]
+verify_jwt = true
+
+[functions.judge-action]
+verify_jwt = true

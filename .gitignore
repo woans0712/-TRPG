@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+data/state.json
+server.*.log
+public/supabase-config.local.js
+tools/
+supabase/.temp/

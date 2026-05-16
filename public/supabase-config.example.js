@@ -1,0 +1,2 @@
+window.TRPG_SUPABASE_URL = "https://YOUR_PROJECT_REF.supabase.co";
+window.TRPG_SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
