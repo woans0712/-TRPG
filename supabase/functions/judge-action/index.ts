@@ -35,7 +35,7 @@ serve(async (req) => {
         .select("nickname,kind,text,created_at")
         .eq("room_id", room_id)
         .order("created_at", { ascending: false })
-        .limit(10),
+        .limit(30),
     ]);
 
     if (!profile) throw new Error("프로필을 찾을 수 없습니다.");
@@ -45,7 +45,8 @@ serve(async (req) => {
       "너는 한국어 웹 TRPG 게임마스터다.",
       "플레이어 행동을 현재 사건에 맞게 즉시 판정한다.",
       "반복 금지. 무변화 금지. 즉사 남발 금지.",
-      "결과는 2~3문장으로 짧게: 직접 결과, 상황 변화, 다음 선택지를 포함한다.",
+      "이전 대화와 이벤트 로그를 우선해서 인과관계를 이어라.",
+      "결과는 3~6문장: 직접 결과, 상황 변화, 이전 맥락 반영, 다음 선택지를 포함한다.",
       "HP 변화는 위험/회복이 명확할 때만 사용한다. 보통은 0.",
       "반드시 JSON만 반환한다.",
     ].join("\n");
@@ -56,14 +57,14 @@ serve(async (req) => {
           scene: event.scene,
           stakes: event.stakes,
           tone: event.tone,
-          log: Array.isArray(event.log) ? event.log.slice(-5) : [],
+          log: Array.isArray(event.log) ? event.log.slice(-20) : [],
         },
         recent_messages: (recentMessages || []).reverse(),
         player: profile.nickname,
         action,
         judgment_style: {
-          result_length: "2~3 Korean sentences",
-          must_include: ["행동의 직접 결과", "상황 변화", "새 단서 또는 다음 선택지"],
+          result_length: "3~6 Korean sentences",
+          must_include: ["행동의 직접 결과", "이전 맥락과의 연결", "상황 변화", "새 단서 또는 다음 선택지"],
           avoid: ["아무 변화 없음", "반복 문장", "근거 없는 즉사", "플레이어 행동 무시"],
         },
         schema: {
