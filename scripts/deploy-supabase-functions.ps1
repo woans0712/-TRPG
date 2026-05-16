@@ -9,6 +9,9 @@ Set-Location $ProjectRoot
 Write-Host "Linking Supabase project: $ProjectRef"
 & $Supabase link --project-ref $ProjectRef
 
+Write-Host "Setting fast OpenAI model"
+& $Supabase secrets set "OPENAI_MODEL=gpt-4.1-nano" --project-ref $ProjectRef
+
 Write-Host "Deploying start-event function"
 & $Supabase functions deploy start-event
 
