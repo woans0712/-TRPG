@@ -13,6 +13,7 @@ const state = {
   channel: null,
   busy: false,
   authReady: false,
+  pendingJudgments: 0,
 };
 
 function requireConfig() {
@@ -46,6 +47,18 @@ function setBusy(isBusy, message = "") {
   $("sendMessageBtn").disabled = isBusy;
   $("messageInput").disabled = isBusy;
   $("startEventBtn").disabled = isBusy;
+}
+
+function setJudgmentPending(delta) {
+  state.pendingJudgments = Math.max(0, state.pendingJudgments + delta);
+  if (state.pendingJudgments > 0) {
+    $("statusLine").textContent =
+      state.pendingJudgments === 1
+        ? "GM이 판정 중... 계속 입력할 수 있습니다."
+        : `GM이 ${state.pendingJudgments}개 행동을 판정 중...`;
+  } else if (!state.busy) {
+    $("statusLine").textContent = "";
+  }
 }
 
 function isAdminProfile(profile = state.profile) {
@@ -372,12 +385,11 @@ function resetGameState() {
 
 $("messageForm").addEventListener("submit", async (event) => {
   event.preventDefault();
-  if (state.busy) return;
   const input = $("messageInput");
   const text = input.value.trim();
   if (!text || !state.room || !state.profile) return;
   input.value = "";
-  setBusy(true, "GM이 행동을 판정하는 중...");
+  input.focus();
 
   const { error } = await state.supabase.from("messages").insert({
     room_id: state.room.id,
@@ -389,19 +401,18 @@ $("messageForm").addEventListener("submit", async (event) => {
 
   if (error) {
     input.value = text;
-    setBusy(false);
     alert(error.message);
     return;
   }
 
-  try {
-    await callFunction("judge-action", { room_id: state.room.id, action: text });
-  } catch (err) {
-    alert(err.message);
-  } finally {
-    setBusy(false);
-    input.focus();
-  }
+  setJudgmentPending(1);
+  callFunction("judge-action", { room_id: state.room.id, action: text })
+    .catch((err) => {
+      alert(err.message);
+    })
+    .finally(() => {
+      setJudgmentPending(-1);
+    });
 });
 
 $("startEventBtn").addEventListener("click", async () => {
