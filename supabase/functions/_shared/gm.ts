@@ -75,13 +75,14 @@ export function fallbackEvent(seed = ""): EventPayload {
   return templates[index];
 }
 
-export function fallbackVerdict(nickname: string, action: string): VerdictPayload {
+export function fallbackVerdict(nickname: string, action: string, event?: Partial<EventPayload>): VerdictPayload {
   const risky = ["공격", "돌진", "문을 연", "나간", "소리"].some((word) => action.includes(word));
   const careful = ["막", "숨", "찾", "살펴", "치료", "조용"].some((word) => action.includes(word));
+  const title = event?.title ? `「${event.title}」에서 ` : "";
 
   if (risky) {
     return {
-      result: `${nickname}의 행동은 과감했지만 위험을 키웠다. 소음이 번지고, 가까운 위협이 반응한다. 작은 부상을 입었다.`,
+      result: `[임시 GM] ${title}${nickname}의 행동은 즉각적인 반응을 불러왔다. ${action} 때문에 주변의 시선과 소음이 한곳으로 모이고, 숨어 있던 위험이 일행의 위치를 더 또렷하게 알아차린다. 작은 부상을 입었지만, 대신 위협이 반응하는 방향과 속도라는 단서를 얻었다. 다음 선택은 빠르게 몸을 숨기거나, 이 반응을 역이용해 함정을 만드는 것이다.`,
       hp_delta: -12,
       status: "긴장",
       world_change: "주변 위협이 플레이어들의 위치를 더 정확히 알아차렸다.",
@@ -90,7 +91,7 @@ export function fallbackVerdict(nickname: string, action: string): VerdictPayloa
 
   if (careful) {
     return {
-      result: `${nickname}의 행동은 효과가 있었다. 완벽하진 않지만 일행에게 짧은 시간을 벌어준다.`,
+      result: `[임시 GM] ${title}${nickname}의 행동은 조심스럽게 장면을 바꿨다. ${action} 덕분에 일행은 당장 덮쳐오는 위험에서 몇 초의 여유를 벌고, 주변을 살필 틈을 얻는다. 완벽한 해결은 아니지만, 근처에서 반복되는 소리나 어긋난 물건처럼 다음 단서로 이어질 만한 흔적이 눈에 들어온다. 이제 그 단서를 조사할지, 안전한 위치를 먼저 확보할지 선택해야 한다.`,
       hp_delta: 0,
       status: "",
       world_change: "일행에게 준비할 시간이 조금 생겼다.",
@@ -98,7 +99,7 @@ export function fallbackVerdict(nickname: string, action: string): VerdictPayloa
   }
 
   return {
-    result: `${nickname}의 행동이 장면에 반영됐다. 아직 결정적인 변화는 없지만, 다음 선택의 단서가 하나 드러난다.`,
+    result: `[임시 GM] ${title}${nickname}의 행동은 사소해 보였지만 장면의 균형을 흔들었다. ${action}이 끝나자 주변의 공기와 사람들의 반응이 미묘하게 달라지고, 방금 전까지 보이지 않던 단서 하나가 드러난다. 그것은 아직 정답은 아니지만, 현재 사건의 규칙을 이해할 실마리다. 다음에는 그 단서를 파고들거나, 위험을 감수하고 더 직접적인 행동을 할 수 있다.`,
     hp_delta: 0,
     status: "",
     world_change: "상황이 천천히 다음 국면으로 넘어간다.",
@@ -128,8 +129,16 @@ export async function openAIJson<T>(system: string, user: unknown): Promise<T | 
   });
 
   if (!response.ok) {
-    console.error("OpenAI request failed", response.status, await response.text());
-    return null;
+    const errorText = await response.text();
+    console.error("OpenAI request failed", response.status, errorText);
+    let message = errorText;
+    try {
+      const parsed = JSON.parse(errorText);
+      message = parsed.error?.message || errorText;
+    } catch {
+      // Keep raw text.
+    }
+    throw new Error(`OpenAI 호출 실패 (${response.status}): ${message}`);
   }
   const payload = await response.json();
   const text = payload.choices?.[0]?.message?.content || "";
@@ -138,6 +147,6 @@ export async function openAIJson<T>(system: string, user: unknown): Promise<T | 
     return JSON.parse(text) as T;
   } catch (error) {
     console.error("OpenAI JSON parse failed", error, text);
-    return null;
+    throw new Error("OpenAI 응답을 JSON으로 해석하지 못했습니다.");
   }
 }

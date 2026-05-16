@@ -78,7 +78,7 @@ serve(async (req) => {
           status: "상태 변화. 없으면 빈 문자열",
           world_change: "세계/장면 변화 요약",
         },
-      })) || fallbackVerdict(profile.nickname, action);
+      })) || fallbackVerdict(profile.nickname, action, event);
 
     const nextHp = Math.max(0, Math.min(100, Number(profile.hp || 100) + Number(verdict.hp_delta || 0)));
     const profilePatch: Record<string, unknown> = { hp: nextHp };
