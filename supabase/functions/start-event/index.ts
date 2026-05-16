@@ -41,7 +41,7 @@ serve(async (req) => {
         variety_seed: `${new Date().toISOString()}-${crypto.randomUUID()}`,
         required_quality: [
           "title은 18자 이하로 강렬하게",
-          "scene은 3~5문장. 장소, 위협, 이상 현상, 첫 단서를 포함",
+          "scene은 3~4문장. 장소, 위협, 이상 현상, 첫 단서를 포함",
           "stakes는 1~2문장. 실패 결과, 당장 목표, 숨은 규칙의 힌트를 포함",
           "tone은 장르 2개 이상을 섞어 짧게",
           "플레이어를 강제로 죽이지 말고, 행동으로 상황이 바뀌게 만들 것",

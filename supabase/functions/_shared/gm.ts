@@ -125,7 +125,7 @@ export async function openAIJson<T>(system: string, user: unknown): Promise<T | 
       body: JSON.stringify({
       model: Deno.env.get("OPENAI_MODEL") || "gpt-4.1-nano",
       temperature: 0.85,
-      max_tokens: 900,
+      max_tokens: 520,
         messages: [
           { role: "system", content: system },
           { role: "user", content: typeof user === "string" ? user : JSON.stringify(user) },
