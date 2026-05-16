@@ -11,6 +11,7 @@ const state = {
   messages: [],
   profiles: [],
   channel: null,
+  busy: false,
 };
 
 function requireConfig() {
@@ -36,6 +37,14 @@ function timeLabel(value) {
 
 function setAuthError(message) {
   $("authError").textContent = message || "";
+}
+
+function setBusy(isBusy, message = "") {
+  state.busy = isBusy;
+  $("statusLine").textContent = message;
+  $("sendMessageBtn").disabled = isBusy;
+  $("messageInput").disabled = isBusy;
+  $("startEventBtn").disabled = isBusy;
 }
 
 function isAdminProfile(profile = state.profile) {
@@ -227,7 +236,7 @@ async function loadMessages() {
     .select("*")
     .eq("room_id", state.room.id)
     .order("created_at", { ascending: false })
-    .limit(80);
+    .limit(30);
   if (error) throw error;
   state.messages = (data || []).reverse();
 }
@@ -303,10 +312,12 @@ $("logoutBtn").addEventListener("click", async () => {
 
 $("messageForm").addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (state.busy) return;
   const input = $("messageInput");
   const text = input.value.trim();
   if (!text || !state.room || !state.profile) return;
   input.value = "";
+  setBusy(true, "GM이 행동을 판정하는 중...");
 
   const { error } = await state.supabase.from("messages").insert({
     room_id: state.room.id,
@@ -318,6 +329,7 @@ $("messageForm").addEventListener("submit", async (event) => {
 
   if (error) {
     input.value = text;
+    setBusy(false);
     alert(error.message);
     return;
   }
@@ -326,11 +338,15 @@ $("messageForm").addEventListener("submit", async (event) => {
     await callFunction("judge-action", { room_id: state.room.id, action: text });
   } catch (err) {
     alert(err.message);
+  } finally {
+    setBusy(false);
+    input.focus();
   }
 });
 
 $("startEventBtn").addEventListener("click", async () => {
-  $("startEventBtn").disabled = true;
+  if (state.busy) return;
+  setBusy(true, "GM이 새 이벤트를 준비하는 중...");
   try {
     await callFunction("start-event", {
       room_id: state.room.id,
@@ -339,7 +355,7 @@ $("startEventBtn").addEventListener("click", async () => {
   } catch (err) {
     alert(err.message);
   } finally {
-    $("startEventBtn").disabled = false;
+    setBusy(false);
   }
 });
 

@@ -347,6 +347,13 @@ label {
   background: rgba(21, 22, 18, 0.96);
 }
 
+.status-line {
+  min-height: 22px;
+  padding: 0 20px 12px;
+  color: var(--accent-2);
+  font-size: 13px;
+}
+
 @media (max-width: 820px) {
   body {
     overflow: auto;
@@ -409,7 +416,8 @@ label {
   .side,
   .messages,
   .table-head,
-  .composer {
+  .composer,
+  .status-line {
     padding-left: 14px;
     padding-right: 14px;
   }
