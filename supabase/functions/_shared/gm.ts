@@ -110,23 +110,37 @@ export async function openAIJson<T>(system: string, user: unknown): Promise<T | 
   const apiKey = Deno.env.get("OPENAI_API_KEY");
   if (!apiKey) return null;
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: Deno.env.get("OPENAI_MODEL") || "gpt-4o-mini",
-      temperature: 0.95,
-      max_tokens: 900,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: typeof user === "string" ? user : JSON.stringify(user) },
-      ],
-      response_format: { type: "json_object" },
-    }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+
+  let response: Response;
+  try {
+    response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: Deno.env.get("OPENAI_MODEL") || "gpt-4o-mini",
+        temperature: 0.85,
+        max_tokens: 650,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: typeof user === "string" ? user : JSON.stringify(user) },
+        ],
+        response_format: { type: "json_object" },
+      }),
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("OpenAI 응답 시간이 30초를 넘었습니다. 행동을 조금 짧게 입력하거나 다시 시도해주세요.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (!response.ok) {
     const errorText = await response.text();

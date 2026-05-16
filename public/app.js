@@ -317,7 +317,10 @@ async function loadProfileAndRender() {
 }
 
 async function callFunction(name, body) {
-  const { data, error } = await state.supabase.functions.invoke(name, { body });
+  const timeout = new Promise((_, reject) => {
+    window.setTimeout(() => reject(new Error("GM 응답이 너무 오래 걸립니다. 잠시 후 다시 시도해주세요.")), 45000);
+  });
+  const { data, error } = await Promise.race([state.supabase.functions.invoke(name, { body }), timeout]);
   if (error) {
     let message = error.message || "Edge Function 호출에 실패했습니다.";
     const response = error.context;
