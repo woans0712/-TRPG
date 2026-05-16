@@ -74,32 +74,33 @@ export async function openAIJson<T>(system: string, user: unknown): Promise<T | 
   const apiKey = Deno.env.get("OPENAI_API_KEY");
   if (!apiKey) return null;
 
-  const response = await fetch("https://api.openai.com/v1/responses", {
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: Deno.env.get("OPENAI_MODEL") || "gpt-4.1-mini",
-      input: [
+      model: Deno.env.get("OPENAI_MODEL") || "gpt-4o-mini",
+      messages: [
         { role: "system", content: system },
         { role: "user", content: typeof user === "string" ? user : JSON.stringify(user) },
       ],
-      text: { format: { type: "json_object" } },
+      response_format: { type: "json_object" },
     }),
   });
 
-  if (!response.ok) return null;
+  if (!response.ok) {
+    console.error("OpenAI request failed", response.status, await response.text());
+    return null;
+  }
   const payload = await response.json();
-  const text = (payload.output || [])
-    .flatMap((item: { content?: Array<{ text?: string }> }) => item.content || [])
-    .map((content: { text?: string }) => content.text || "")
-    .join("");
+  const text = payload.choices?.[0]?.message?.content || "";
 
   try {
     return JSON.parse(text) as T;
-  } catch {
+  } catch (error) {
+    console.error("OpenAI JSON parse failed", error, text);
     return null;
   }
 }

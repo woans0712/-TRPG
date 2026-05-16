@@ -18,7 +18,7 @@ if (-not ($OpenAIKey.StartsWith("sk-") -or $OpenAIKey.StartsWith("sk-proj-"))) {
 }
 
 & $Supabase secrets set "OPENAI_API_KEY=$OpenAIKey" --project-ref $ProjectRef
-& $Supabase secrets set "OPENAI_MODEL=gpt-4.1-mini" --project-ref $ProjectRef
+& $Supabase secrets set "OPENAI_MODEL=gpt-4o-mini" --project-ref $ProjectRef
 
 Write-Host "OpenAI secrets were saved to Supabase."
 Write-Host "Redeploying Edge Functions so the new secrets are active."
