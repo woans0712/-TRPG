@@ -111,6 +111,13 @@ function render() {
   if (nearBottom) box.scrollTop = box.scrollHeight;
 }
 
+function appendMessage(message) {
+  if (!message?.id) return;
+  if (state.messages.some((item) => item.id === message.id)) return;
+  state.messages = [...state.messages, message].slice(-30);
+  render();
+}
+
 function messageNode(message) {
   const el = document.createElement("article");
   el.className = `message ${message.kind}`;
@@ -279,8 +286,8 @@ function subscribeRealtime() {
     })
     .on(
       "postgres_changes",
-      { event: "*", schema: "public", table: "messages", filter: `room_id=eq.${state.room.id}` },
-      loadMessagesAndRender,
+      { event: "INSERT", schema: "public", table: "messages", filter: `room_id=eq.${state.room.id}` },
+      (payload) => appendMessage(payload.new),
     )
     .on(
       "postgres_changes",
@@ -301,11 +308,6 @@ function subscribeRealtime() {
         });
       }
     });
-}
-
-async function loadMessagesAndRender() {
-  await loadMessages();
-  render();
 }
 
 async function loadEventAndRender() {
@@ -391,13 +393,17 @@ $("messageForm").addEventListener("submit", async (event) => {
   input.value = "";
   input.focus();
 
-  const { error } = await state.supabase.from("messages").insert({
-    room_id: state.room.id,
-    user_id: state.profile.id,
-    nickname: state.profile.nickname,
-    kind: "chat",
-    text,
-  });
+  const { data: insertedMessage, error } = await state.supabase
+    .from("messages")
+    .insert({
+      room_id: state.room.id,
+      user_id: state.profile.id,
+      nickname: state.profile.nickname,
+      kind: "chat",
+      text,
+    })
+    .select()
+    .single();
 
   if (error) {
     input.value = text;
@@ -405,6 +411,7 @@ $("messageForm").addEventListener("submit", async (event) => {
     return;
   }
 
+  appendMessage(insertedMessage);
   setJudgmentPending(1);
   callFunction("judge-action", { room_id: state.room.id, action: text })
     .catch((err) => {
