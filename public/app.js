@@ -318,7 +318,24 @@ async function loadProfileAndRender() {
 
 async function callFunction(name, body) {
   const { data, error } = await state.supabase.functions.invoke(name, { body });
-  if (error) throw error;
+  if (error) {
+    let message = error.message || "Edge Function 호출에 실패했습니다.";
+    const response = error.context;
+    if (response) {
+      try {
+        const payload = await response.clone().json();
+        message = payload.error || payload.message || message;
+      } catch {
+        try {
+          const text = await response.clone().text();
+          if (text) message = text;
+        } catch {
+          // Keep the original error message.
+        }
+      }
+    }
+    throw new Error(message);
+  }
   if (data?.error) throw new Error(data.error);
   return data;
 }
