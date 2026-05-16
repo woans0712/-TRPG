@@ -92,7 +92,8 @@ label {
   height: 100vh;
 }
 
-.auth {
+.auth,
+.loading {
   min-height: 100vh;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
@@ -101,6 +102,16 @@ label {
   max-width: 1040px;
   margin: 0 auto;
   padding: 24px;
+}
+
+.loading {
+  grid-template-columns: 1fr;
+  place-items: center;
+  text-align: center;
+}
+
+.loading h2 {
+  margin: 8px 0 0;
 }
 
 .brand h1 {

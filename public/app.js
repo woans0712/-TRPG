@@ -12,6 +12,7 @@ const state = {
   profiles: [],
   channel: null,
   busy: false,
+  authReady: false,
 };
 
 function requireConfig() {
@@ -52,6 +53,13 @@ function isAdminProfile(profile = state.profile) {
 }
 
 function render() {
+  $("loadingView").classList.toggle("hidden", state.authReady);
+  if (!state.authReady) {
+    $("authView").classList.add("hidden");
+    $("gameView").classList.add("hidden");
+    return;
+  }
+
   const loggedIn = Boolean(state.session && state.profile);
   $("authView").classList.toggle("hidden", loggedIn);
   $("gameView").classList.toggle("hidden", !loggedIn);
@@ -120,11 +128,17 @@ async function init() {
   const { data } = await state.supabase.auth.getSession();
   state.session = data.session;
   if (state.session) await loadGame();
+  state.authReady = true;
   render();
 
   state.supabase.auth.onAuthStateChange(async (_event, session) => {
     state.session = session;
-    if (session) await loadGame();
+    if (session) {
+      await loadGame();
+    } else {
+      resetGameState();
+    }
+    state.authReady = true;
     render();
   });
 }
@@ -299,16 +313,24 @@ $("authForm").addEventListener("submit", (event) => {
 });
 
 $("logoutBtn").addEventListener("click", async () => {
+  state.authReady = false;
+  render();
   if (state.channel) await state.supabase.removeChannel(state.channel);
   await state.supabase.auth.signOut();
+  resetGameState();
+  state.authReady = true;
+  render();
+});
+
+function resetGameState() {
   state.session = null;
   state.profile = null;
   state.room = null;
   state.event = null;
   state.messages = [];
   state.profiles = [];
-  render();
-});
+  state.channel = null;
+}
 
 $("messageForm").addEventListener("submit", async (event) => {
   event.preventDefault();
