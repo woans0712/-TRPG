@@ -1,5 +1,0 @@
-__pycache__/
-*.pyc
-.git/
-data/state.json
-server.*.log
