@@ -96,6 +96,41 @@ to authenticated
 using (auth.uid() = id)
 with check (auth.uid() = id);
 
+drop policy if exists "admins update profiles" on public.profiles;
+create policy "admins update profiles"
+on public.profiles for update
+to authenticated
+using (
+  exists (
+    select 1
+    from public.profiles admin_profile
+    where admin_profile.id = auth.uid()
+      and admin_profile.is_admin = true
+  )
+)
+with check (
+  exists (
+    select 1
+    from public.profiles admin_profile
+    where admin_profile.id = auth.uid()
+      and admin_profile.is_admin = true
+  )
+);
+
+drop policy if exists "admins delete profiles" on public.profiles;
+create policy "admins delete profiles"
+on public.profiles for delete
+to authenticated
+using (
+  id <> auth.uid()
+  and exists (
+    select 1
+    from public.profiles admin_profile
+    where admin_profile.id = auth.uid()
+      and admin_profile.is_admin = true
+  )
+);
+
 drop policy if exists "rooms are readable" on public.rooms;
 create policy "rooms are readable"
 on public.rooms for select

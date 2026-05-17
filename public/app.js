@@ -8,6 +8,7 @@ const state = {
   supabase: null,
   session: null,
   profile: null,
+  profiles: [],
   game: null,
   tick: null,
   saveTimer: null,
@@ -60,7 +61,7 @@ function normalizeGame(saved) {
 }
 
 function readSavedGame(profile) {
-  const local = readLocalGame(profile?.id);
+  const local = readLocalGame(profile?.id, profile?.updated_at);
   if (local) return local;
 
   const inventory = profile?.inventory;
@@ -74,13 +75,20 @@ function localCacheKey(userId = state.profile?.id) {
   return userId ? `${BACKEND.storage.localPrefix}${userId}` : "";
 }
 
-function readLocalGame(userId) {
+function readLocalGame(userId, serverUpdatedAt) {
   const key = localCacheKey(userId);
   if (!key) return null;
 
   try {
     const raw = window.localStorage.getItem(key);
-    return raw ? normalizeGame(JSON.parse(raw)) : null;
+    if (!raw) return null;
+    const local = JSON.parse(raw);
+    if (serverUpdatedAt && local.localSavedAt) {
+      const serverTime = new Date(serverUpdatedAt).getTime();
+      const localTime = new Date(local.localSavedAt).getTime();
+      if (serverTime > localTime) return null;
+    }
+    return normalizeGame(local);
   } catch {
     return null;
   }
@@ -91,7 +99,7 @@ function saveLocalGame() {
   if (!key || !state.game) return;
 
   try {
-    window.localStorage.setItem(key, JSON.stringify(state.game));
+    window.localStorage.setItem(key, JSON.stringify({ ...state.game, localSavedAt: new Date().toISOString() }));
   } catch {
     // Local cache is only a speed boost. Supabase remains the source of truth.
   }
@@ -99,6 +107,15 @@ function saveLocalGame() {
 
 function packedInventory(game) {
   const inventory = state.profile?.inventory;
+  const current = inventory && !Array.isArray(inventory) ? inventory : {};
+  return {
+    ...current,
+    [SAVE_KEY]: game,
+  };
+}
+
+function inventoryWithGame(profile, game) {
+  const inventory = profile?.inventory;
   const current = inventory && !Array.isArray(inventory) ? inventory : {};
   return {
     ...current,
@@ -225,12 +242,13 @@ function render() {
   $("enhanceBtn").disabled = !canEnhance();
   $("enhanceBtn").classList.toggle("hidden", state.game.destroyed);
   $("enhanceBtn").textContent = state.game.level >= CONFIG.item.maxLevel ? "최대 강화 완료" : "강화하기";
-  $("newItemBtn").classList.toggle("hidden", !state.game.destroyed);
-  $("adminResetBtn").classList.toggle("hidden", !isAdmin());
+  $("restoreItemBtn").classList.toggle("hidden", !state.game.destroyed);
+  $("adminDashboard").classList.toggle("hidden", !isAdmin());
   $("itemFrame").dataset.grade = gradeName(state.game.level);
   $("itemFrame").classList.toggle("destroyed", state.game.destroyed);
 
   renderHistory();
+  renderAdminUsers();
 }
 
 function isAdmin() {
@@ -271,6 +289,60 @@ function renderHistory() {
     `;
     list.appendChild(item);
   });
+}
+
+function renderAdminUsers() {
+  const list = $("userList");
+  if (!list || !isAdmin()) return;
+
+  list.innerHTML = "";
+
+  if (state.profiles.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "empty-list";
+    empty.textContent = "가입 유저를 불러오는 중입니다.";
+    list.appendChild(empty);
+    return;
+  }
+
+  state.profiles.forEach((profile) => {
+    const savedGame = readSavedGameFromProfile(profile);
+    const row = document.createElement("article");
+    row.className = "user-row";
+    const info = document.createElement("div");
+    const name = document.createElement("strong");
+    const meta = document.createElement("span");
+    const actions = document.createElement("div");
+    const resetButton = document.createElement("button");
+    const deleteButton = document.createElement("button");
+
+    actions.className = "user-actions";
+    resetButton.type = "button";
+    resetButton.className = "ghost compact";
+    resetButton.dataset.action = "reset";
+    resetButton.dataset.userId = profile.id;
+    resetButton.textContent = "초기화";
+    deleteButton.type = "button";
+    deleteButton.className = "danger compact";
+    deleteButton.dataset.action = "delete";
+    deleteButton.dataset.userId = profile.id;
+    deleteButton.textContent = "삭제";
+
+    name.textContent = profile.nickname;
+    meta.textContent = `+${savedGame.bestLevel ?? 0} 최고 / ${savedGame.attempts ?? 0}회 남음`;
+    info.append(name, meta);
+    actions.append(resetButton, deleteButton);
+    row.append(info, actions);
+    list.appendChild(row);
+  });
+}
+
+function readSavedGameFromProfile(profile) {
+  const inventory = profile?.inventory;
+  if (inventory && !Array.isArray(inventory) && inventory[SAVE_KEY]) {
+    return normalizeGame(inventory[SAVE_KEY]);
+  }
+  return defaultGame();
 }
 
 function randomPick(items) {
@@ -343,14 +415,15 @@ async function adminResetGame() {
   queueSave();
 }
 
-async function receiveNewItem() {
+async function restoreItem() {
   if (!state.game?.destroyed) return;
-  state.game.level = 0;
+  state.game.level = 1;
   state.game.destroyed = false;
+  state.game.bestLevel = Math.max(state.game.bestLevel || 0, 1);
   pushHistory({
     result: "system",
-    title: "새 장비 지급",
-    text: "파괴된 장비를 버리고 새 장비를 받았다. 남은 기회는 유지된다.",
+    title: "장비 복구",
+    text: "파괴된 장비를 복구했다. 장비는 +1부터 다시 시작하고, 남은 기회는 유지된다.",
   });
   render();
   queueSave();
@@ -387,6 +460,58 @@ async function loadProfile() {
   state.game = readSavedGame(data);
 }
 
+async function loadProfiles() {
+  if (!isAdmin()) {
+    state.profiles = [];
+    return;
+  }
+
+  const { data, error } = await state.supabase
+    .from("profiles")
+    .select("id,nickname,is_admin,inventory,updated_at")
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  state.profiles = data || [];
+}
+
+async function resetUserProfile(userId) {
+  if (!isAdmin()) return;
+  const target = state.profiles.find((profile) => profile.id === userId);
+  if (!target) return;
+
+  const inventory = inventoryWithGame(target, defaultGame());
+  const { error } = await state.supabase.from("profiles").update({ inventory }).eq("id", userId);
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  await loadProfiles();
+  render();
+}
+
+async function deleteUserProfile(userId) {
+  if (!isAdmin()) return;
+  const target = state.profiles.find((profile) => profile.id === userId);
+  if (!target) return;
+  if (target.id === state.profile.id) {
+    alert("현재 로그인한 내 계정은 여기서 삭제하지 않습니다.");
+    return;
+  }
+
+  const ok = confirm(`${target.nickname} 유저 데이터를 삭제할까요?`);
+  if (!ok) return;
+
+  const { error } = await state.supabase.from("profiles").delete().eq("id", userId);
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  state.profiles = state.profiles.filter((profile) => profile.id !== userId);
+  render();
+}
+
 async function auth(mode) {
   setAuthError("");
   const nickname = $("nickname").value.trim();
@@ -418,6 +543,7 @@ async function auth(mode) {
 
     await ensureProfile(nickname);
     await loadProfile();
+    await loadProfiles();
     await saveGame();
     render();
   } catch (err) {
@@ -457,7 +583,10 @@ async function init() {
 
   const { data } = await state.supabase.auth.getSession();
   state.session = data.session;
-  if (state.session) await loadProfile();
+  if (state.session) {
+    await loadProfile();
+    await loadProfiles();
+  }
   render();
 
   state.tick = window.setInterval(async () => {
@@ -473,8 +602,20 @@ $("authForm").addEventListener("submit", (event) => {
 
 $("registerBtn").addEventListener("click", () => auth("register"));
 $("enhanceBtn").addEventListener("click", enhance);
-$("newItemBtn").addEventListener("click", receiveNewItem);
+$("restoreItemBtn").addEventListener("click", restoreItem);
 $("adminResetBtn").addEventListener("click", adminResetGame);
+$("refreshUsersBtn").addEventListener("click", async () => {
+  await loadProfiles();
+  render();
+});
+$("userList").addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+
+  const userId = button.dataset.userId;
+  if (button.dataset.action === "reset") await resetUserProfile(userId);
+  if (button.dataset.action === "delete") await deleteUserProfile(userId);
+});
 $("clearLogBtn").addEventListener("click", clearHistory);
 $("logoutBtn").addEventListener("click", async () => {
   await flushSave();

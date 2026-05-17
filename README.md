@@ -33,6 +33,8 @@ GitHub Pages와 Supabase로 돌아가는 강화 시뮬레이터입니다.
 
 프론트엔드만 바꿨을 때는 GitHub에 push하면 GitHub Pages가 자동 배포합니다.
 
+관리자 유저 목록, 다른 유저 초기화, 다른 유저 삭제 권한은 DB 정책이 필요합니다. 이 기능을 반영할 때는 DB 스키마도 적용해야 합니다.
+
 Supabase 함수가 바뀌었을 때만 사용자 PC의 PowerShell에서 실행합니다.
 
 ```powershell

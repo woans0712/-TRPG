@@ -185,6 +185,61 @@ label {
   gap: 18px;
 }
 
+.admin-dashboard {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 18px;
+}
+
+.panel-title-row,
+.user-row,
+.user-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.panel-title-row,
+.user-row {
+  justify-content: space-between;
+}
+
+button.compact {
+  min-height: 34px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+button.danger.compact {
+  width: auto;
+}
+
+.user-list {
+  max-height: 330px;
+  overflow-y: auto;
+  display: grid;
+  gap: 8px;
+  padding-right: 4px;
+}
+
+.user-row {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #111410;
+  padding: 10px;
+}
+
+.user-row strong,
+.user-row span {
+  display: block;
+}
+
+.user-row span,
+.empty-list {
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .forge {
   min-height: 520px;
   padding: 20px;
@@ -407,6 +462,7 @@ label {
 
 @media (max-width: 880px) {
   .auth-view,
+  .admin-dashboard,
   .layout {
     grid-template-columns: 1fr;
   }
