@@ -20,11 +20,19 @@ function getSupabaseConfig() {
   return { url, key };
 }
 
-function nicknameEmail(nickname) {
+function encodedNickname(nickname) {
   const encoded = Array.from(nickname.trim().toLowerCase())
     .map((ch) => ch.codePointAt(0).toString(16))
     .join("");
-  return `enhance${encoded}@ddubbi-sim.app`;
+  return encoded;
+}
+
+function nicknameEmail(nickname) {
+  return `trpg${encodedNickname(nickname)}@trpgsim.app`;
+}
+
+function enhanceNicknameEmail(nickname) {
+  return `enhance${encodedNickname(nickname)}@ddubbi-sim.app`;
 }
 
 function defaultGame() {
@@ -314,28 +322,48 @@ async function auth(mode) {
     return;
   }
 
-  const email = nicknameEmail(nickname);
-  const options = mode === "register" ? { data: { nickname } } : undefined;
-  const result =
-    mode === "register"
-      ? await state.supabase.auth.signUp({ email, password, options })
-      : await state.supabase.auth.signInWithPassword({ email, password });
+  try {
+    const result = mode === "register" ? await registerWithNickname(nickname, password) : await loginWithNickname(nickname, password);
 
-  if (result.error) {
-    setAuthError(result.error.message);
-    return;
+    if (result.error) {
+      setAuthError(result.error.message);
+      return;
+    }
+
+    state.session = result.data.session;
+    if (!state.session) {
+      setAuthError("Supabase Auth에서 이메일 확인 기능을 꺼야 바로 로그인됩니다.");
+      return;
+    }
+
+    await ensureProfile(nickname);
+    await loadProfile();
+    await saveGame();
+    render();
+  } catch (err) {
+    setAuthError(err.message || "로그인 처리 중 문제가 생겼습니다.");
+  }
+}
+
+async function registerWithNickname(nickname, password) {
+  return state.supabase.auth.signUp({
+    email: nicknameEmail(nickname),
+    password,
+    options: { data: { nickname } },
+  });
+}
+
+async function loginWithNickname(nickname, password) {
+  const emails = [nicknameEmail(nickname), enhanceNicknameEmail(nickname)];
+  let lastResult = null;
+
+  for (const email of emails) {
+    const result = await state.supabase.auth.signInWithPassword({ email, password });
+    if (!result.error) return result;
+    lastResult = result;
   }
 
-  state.session = result.data.session;
-  if (!state.session) {
-    setAuthError("Supabase Auth에서 이메일 확인 기능을 꺼야 바로 로그인됩니다.");
-    return;
-  }
-
-  await ensureProfile(nickname);
-  await loadProfile();
-  await saveGame();
-  render();
+  return lastResult;
 }
 
 async function init() {
