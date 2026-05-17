@@ -3,40 +3,137 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>뚜비의 심심풀이</title>
+    <title>뚜비의 강화 공방</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <main class="reset-shell">
-      <section class="hero">
-        <p class="eyebrow">TRPG rebuild</p>
-        <h1>뚜비의 심심풀이</h1>
-        <p class="lead">
-          기존 TRPG 실험판은 정리했습니다. Supabase와 OpenAI 연결 정보는 남겨두고,
-          다음 판을 더 빠르고 단순한 구조로 다시 설계할 준비가 된 상태입니다.
-        </p>
+    <main class="app">
+      <section class="auth-view" id="authView">
+        <div class="brand">
+          <p class="eyebrow">instant enhancement simulator</p>
+          <h1>뚜비의 강화 공방</h1>
+          <p>10번의 기회로 장비를 밀어붙이는 빠른 강화 시뮬레이터.</p>
+        </div>
+
+        <form class="auth-card" id="authForm">
+          <label>
+            닉네임
+            <input id="nickname" autocomplete="username" maxlength="20" required />
+          </label>
+          <label>
+            비밀번호
+            <input id="password" type="password" autocomplete="current-password" minlength="6" required />
+          </label>
+          <div class="auth-actions">
+            <button type="submit">로그인</button>
+            <button type="button" class="secondary" id="registerBtn">처음 시작</button>
+          </div>
+          <p class="error" id="authError"></p>
+        </form>
       </section>
 
-      <section class="status-panel" aria-labelledby="statusTitle">
-        <h2 id="statusTitle">남겨둔 것</h2>
-        <ul>
-          <li>Supabase 프로젝트 URL / 공개 키 설정</li>
-          <li>Supabase DB 스키마와 Edge Function 소스</li>
-          <li>OpenAI 비밀키 등록 / 함수 배포 스크립트</li>
-          <li>GitHub Pages 배포 구조</li>
-        </ul>
-      </section>
+      <section class="game-view hidden" id="gameView">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">enhancement workshop</p>
+            <h1>뚜비의 강화 공방</h1>
+          </div>
+          <div class="profile-box">
+            <strong id="profileName">-</strong>
+            <button type="button" class="ghost" id="logoutBtn">로그아웃</button>
+          </div>
+        </header>
 
-      <section class="status-panel muted" aria-labelledby="nextTitle">
-        <h2 id="nextTitle">다음 작업</h2>
-        <p>
-          새 게임 방식, 속도 우선 구조, GPT 호출 타이밍을 정한 뒤 필요한 부분만 다시 붙이면 됩니다.
-        </p>
+        <section class="layout">
+          <article class="forge">
+            <div class="item-frame" id="itemFrame">
+              <p class="item-type" id="itemType">장비</p>
+              <h2 id="itemName">낡은 심심검</h2>
+              <div class="level" id="levelText">+0</div>
+              <p class="flavor" id="itemFlavor">강화할수록 묘하게 눈치가 보이는 검.</p>
+            </div>
+
+            <div class="chance-row">
+              <div>
+                <span>성공 확률</span>
+                <strong id="successRate">0%</strong>
+              </div>
+              <div>
+                <span>실패 위험</span>
+                <strong id="riskRate">0%</strong>
+              </div>
+              <div>
+                <span>최고 기록</span>
+                <strong id="bestLevel">+0</strong>
+              </div>
+            </div>
+
+            <button type="button" class="enhance-button" id="enhanceBtn">강화하기</button>
+            <p class="cooldown" id="cooldownText"></p>
+          </article>
+
+          <aside class="side">
+            <section class="panel">
+              <h2>자원</h2>
+              <div class="resource-grid">
+                <div>
+                  <span>기회</span>
+                  <strong id="attemptsText">0 / 10</strong>
+                </div>
+                <div>
+                  <span>골드</span>
+                  <strong id="coinsText">0</strong>
+                </div>
+                <div>
+                  <span>파편</span>
+                  <strong id="shardsText">0</strong>
+                </div>
+                <div>
+                  <span>집념</span>
+                  <strong id="pityText">0</strong>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel">
+              <h2>현재 단계</h2>
+              <dl class="detail-list">
+                <div>
+                  <dt>강화 비용</dt>
+                  <dd id="costText">-</dd>
+                </div>
+                <div>
+                  <dt>실패 시</dt>
+                  <dd id="failureText">-</dd>
+                </div>
+                <div>
+                  <dt>파괴 방지</dt>
+                  <dd id="guardText">-</dd>
+                </div>
+              </dl>
+            </section>
+
+            <section class="panel danger-zone">
+              <h2>초기화</h2>
+              <p>현재 장비와 자원을 처음 상태로 되돌립니다.</p>
+              <button type="button" class="danger" id="resetBtn">새 장비 받기</button>
+            </section>
+          </aside>
+        </section>
+
+        <section class="log-panel">
+          <div class="log-head">
+            <h2>강화 기록</h2>
+            <button type="button" class="ghost" id="clearLogBtn">기록 비우기</button>
+          </div>
+          <ol id="historyList"></ol>
+        </section>
       </section>
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
+    <script src="game-data.js"></script>
     <script src="app.js"></script>
   </body>
 </html>
