@@ -82,11 +82,6 @@ function successChance() {
   return Math.min(100, rule.success + bonus);
 }
 
-function failureRiskText(rule) {
-  if (state.game.level >= CONFIG.item.maxLevel) return "없음";
-  return CONFIG.failureText[rule.fail] || "알 수 없음";
-}
-
 function canEnhance() {
   if (!state.game) return false;
   if (state.game.level >= CONFIG.item.maxLevel) return false;
@@ -146,7 +141,6 @@ function render() {
   refillAttempts();
   const rule = currentRule();
   const chance = successChance();
-  const risk = state.game.level >= CONFIG.item.maxLevel ? 0 : Math.max(0, 100 - chance);
 
   $("profileName").textContent = state.profile.nickname;
   $("itemType").textContent = CONFIG.item.type;
@@ -154,16 +148,14 @@ function render() {
   $("itemFlavor").textContent = CONFIG.item.flavor;
   $("levelText").textContent = `+${state.game.level}`;
   $("successRate").textContent = state.game.level >= CONFIG.item.maxLevel ? "완성" : `${chance.toFixed(1)}%`;
-  $("riskRate").textContent = state.game.level >= CONFIG.item.maxLevel ? "없음" : `${risk.toFixed(1)}%`;
   $("bestLevel").textContent = `+${state.game.bestLevel}`;
+  $("gradeText").textContent = gradeLabel(state.game.level);
   $("attemptsText").textContent = `${state.game.attempts} / ${CONFIG.attempt.max}`;
   $("coinsText").textContent = state.game.coins.toLocaleString("ko-KR");
   $("shardsText").textContent = state.game.shards.toLocaleString("ko-KR");
   $("pityText").textContent = `${state.game.pity}`;
-  $("costText").textContent =
-    state.game.level >= CONFIG.item.maxLevel ? "완성됨" : `${rule.cost.toLocaleString("ko-KR")}G / 파편 ${rule.shards}`;
-  $("failureText").textContent = failureRiskText(rule);
-  $("guardText").textContent = state.game.level >= 12 ? "없음. 실패하면 위험함" : "아직 안전권";
+  $("costText").textContent = state.game.level >= CONFIG.item.maxLevel ? "완성됨" : `${rule.cost.toLocaleString("ko-KR")}G`;
+  $("shardCostText").textContent = state.game.level >= CONFIG.item.maxLevel ? "완성됨" : `${rule.shards}개`;
 
   const remain = secondsUntilAttempt();
   $("cooldownText").textContent =
@@ -184,6 +176,13 @@ function gradeName(level) {
   if (level >= 8) return "rare";
   if (level >= 4) return "fine";
   return "plain";
+}
+
+function gradeLabel(level) {
+  if (level >= 12) return "붕괴권";
+  if (level >= 10) return "위험";
+  if (level >= 5) return "불안정";
+  return "안정";
 }
 
 function renderHistory() {
@@ -247,17 +246,22 @@ async function enhance() {
       text: randomPick(CONFIG.messages.success),
     });
   } else {
-    applyFailure(rule.fail);
+    const failureType = rollDestroy(rule) ? "destroy" : rule.fail;
+    applyFailure(failureType);
     state.game.pity += 1;
     pushHistory({
-      result: rule.fail,
+      result: failureType,
       title: `+${before} 강화 실패`,
-      text: randomPick(CONFIG.messages[rule.fail]),
+      text: randomPick(CONFIG.messages[failureType]),
     });
   }
 
   render();
   await saveGame();
+}
+
+function rollDestroy(rule) {
+  return Math.random() * 100 < (rule.destroyChance || 0);
 }
 
 function applyFailure(type) {

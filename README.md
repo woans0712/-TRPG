@@ -25,6 +25,7 @@ GitHub Pages와 Supabase로 돌아가는 강화 시뮬레이터입니다.
 - `levels[].cost`: 단계별 골드 비용
 - `levels[].shards`: 단계별 파편 비용
 - `levels[].fail`: 실패 결과
+- `levels[].destroyChance`: 실패했을 때 추가로 파괴될 확률
 
 실패 결과 종류:
 
