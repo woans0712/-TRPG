@@ -3,6 +3,8 @@ window.ENHANCE_BACKEND_DATA = {
 
   storage: {
     saveKey: "enhanceWorkshop",
+    localPrefix: "enhanceWorkshop:",
+    syncDebounceMs: 350,
   },
 
   auth: {

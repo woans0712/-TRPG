@@ -10,6 +10,9 @@ const state = {
   profile: null,
   game: null,
   tick: null,
+  saveTimer: null,
+  saveInFlight: false,
+  saveQueued: false,
 };
 
 function getSupabaseConfig() {
@@ -56,11 +59,41 @@ function normalizeGame(saved) {
 }
 
 function readSavedGame(profile) {
+  const local = readLocalGame(profile?.id);
+  if (local) return local;
+
   const inventory = profile?.inventory;
   if (inventory && !Array.isArray(inventory) && inventory[SAVE_KEY]) {
     return normalizeGame(inventory[SAVE_KEY]);
   }
   return defaultGame();
+}
+
+function localCacheKey(userId = state.profile?.id) {
+  return userId ? `${BACKEND.storage.localPrefix}${userId}` : "";
+}
+
+function readLocalGame(userId) {
+  const key = localCacheKey(userId);
+  if (!key) return null;
+
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? normalizeGame(JSON.parse(raw)) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveLocalGame() {
+  const key = localCacheKey();
+  if (!key || !state.game) return;
+
+  try {
+    window.localStorage.setItem(key, JSON.stringify(state.game));
+  } catch {
+    // Local cache is only a speed boost. Supabase remains the source of truth.
+  }
 }
 
 function packedInventory(game) {
@@ -116,6 +149,7 @@ function refillAttempts() {
 
 async function saveGame() {
   if (!state.session || !state.profile || !state.game) return;
+  saveLocalGame();
   const inventory = packedInventory(state.game);
   const { error } = await state.supabase.from("profiles").update({ inventory }).eq("id", state.profile.id);
   if (error) {
@@ -123,6 +157,29 @@ async function saveGame() {
     return;
   }
   state.profile.inventory = inventory;
+}
+
+function queueSave() {
+  saveLocalGame();
+  window.clearTimeout(state.saveTimer);
+  state.saveTimer = window.setTimeout(flushSave, BACKEND.storage.syncDebounceMs);
+}
+
+async function flushSave() {
+  if (state.saveInFlight) {
+    state.saveQueued = true;
+    return;
+  }
+
+  state.saveInFlight = true;
+  state.saveQueued = false;
+
+  try {
+    await saveGame();
+  } finally {
+    state.saveInFlight = false;
+    if (state.saveQueued) queueSave();
+  }
 }
 
 function setAuthError(message) {
@@ -256,7 +313,7 @@ async function enhance() {
   }
 
   render();
-  await saveGame();
+  queueSave();
 }
 
 function rollDestroy(rule) {
@@ -276,13 +333,13 @@ function applyFailure(type) {
 async function resetGame() {
   state.game = defaultGame();
   render();
-  await saveGame();
+  queueSave();
 }
 
 async function clearHistory() {
   state.game.history = [];
   render();
-  await saveGame();
+  queueSave();
 }
 
 async function ensureProfile(nickname) {
@@ -384,7 +441,7 @@ async function init() {
   render();
 
   state.tick = window.setInterval(async () => {
-    if (refillAttempts()) await saveGame();
+    if (refillAttempts()) queueSave();
     render();
   }, 1000);
 }
@@ -399,6 +456,7 @@ $("enhanceBtn").addEventListener("click", enhance);
 $("resetBtn").addEventListener("click", resetGame);
 $("clearLogBtn").addEventListener("click", clearHistory);
 $("logoutBtn").addEventListener("click", async () => {
+  await flushSave();
   await state.supabase.auth.signOut();
   state.session = null;
   state.profile = null;
