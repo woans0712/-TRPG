@@ -4,28 +4,26 @@ GitHub Pages와 Supabase로 돌아가는 강화 시뮬레이터입니다.
 
 현재 판은 GPT와 실시간 채팅을 쓰지 않습니다. 유저가 강화 버튼을 누르면 브라우저에서 즉시 결과가 나오고, 진행 상태는 Supabase 프로필 데이터에 저장됩니다.
 
-## 구조
+## 수정할 파일
 
-- GitHub Pages 정적 배포 구조: `public/`
-- Supabase 공개 연결 설정: `public/supabase-config.js`
-- 강화 밸런스 데이터: `public/game-data.js`
-- 로그인/저장용 DB 스키마: `supabase/`
-- Supabase 배포 스크립트: `scripts/`
-
-## 밸런스 수정
-
-강화 확률, 비용, 쿨타임, 시작 자원, 실패 페널티는 [public/game-data.js](public/game-data.js)에서 수정합니다.
+게임 밸런스와 문구는 [public/backend-data.js](public/backend-data.js) 하나에서 관리합니다.
 
 자주 만질 값:
 
-- `startingState.attempts`: 처음 지급되는 기회
-- `attempt.max`: 최대 기회
-- `attempt.cooldownSeconds`: 기회 1개가 회복되는 시간
-- `levels[].success`: 단계별 성공 확률
-- `levels[].cost`: 단계별 골드 비용
-- `levels[].shards`: 단계별 파편 비용
-- `levels[].fail`: 실패 결과
-- `levels[].destroyChance`: 실패했을 때 추가로 파괴될 확률
+- `storage.saveKey`: Supabase 프로필에 저장되는 게임 데이터 이름
+- `auth`: 닉네임 로그인용 내부 이메일 규칙
+- `game.item`: 장비 이름, 종류, 설명, 최대 강화 단계
+- `game.startingState`: 시작 골드, 파편, 기회, 집념
+- `game.attempt.max`: 최대 기회
+- `game.attempt.cooldownSeconds`: 기회 1개가 회복되는 시간
+- `game.pity`: 실패 보정 수치
+- `game.gradeLabels`: 단계 상태 문구
+- `game.levels[].success`: 단계별 성공 확률
+- `game.levels[].cost`: 단계별 골드 비용
+- `game.levels[].shards`: 단계별 파편 비용
+- `game.levels[].fail`: 실패 결과
+- `game.levels[].destroyChance`: 실패했을 때 추가로 파괴될 확률
+- `game.messages`: 성공/실패/파괴 문구
 
 실패 결과 종류:
 

@@ -1,5 +1,6 @@
-const CONFIG = window.ENHANCE_GAME_CONFIG;
-const SAVE_KEY = "enhanceWorkshop";
+const BACKEND = window.ENHANCE_BACKEND_DATA;
+const CONFIG = BACKEND.game;
+const SAVE_KEY = BACKEND.storage.saveKey;
 
 const $ = (id) => document.getElementById(id);
 
@@ -28,11 +29,11 @@ function encodedNickname(nickname) {
 }
 
 function nicknameEmail(nickname) {
-  return `trpg${encodedNickname(nickname)}@trpgsim.app`;
+  return `${BACKEND.auth.primaryPrefix}${encodedNickname(nickname)}@${BACKEND.auth.primaryDomain}`;
 }
 
 function enhanceNicknameEmail(nickname) {
-  return `enhance${encodedNickname(nickname)}@ddubbi-sim.app`;
+  return `${BACKEND.auth.fallbackPrefix}${encodedNickname(nickname)}@${BACKEND.auth.fallbackDomain}`;
 }
 
 function defaultGame() {
@@ -40,7 +41,7 @@ function defaultGame() {
     ...CONFIG.startingState,
     history: [],
     nextAttemptAt: null,
-    version: CONFIG.version,
+    version: BACKEND.version,
   };
 }
 
@@ -171,18 +172,16 @@ function render() {
 }
 
 function gradeName(level) {
-  if (level >= 15) return "myth";
-  if (level >= 12) return "legend";
-  if (level >= 8) return "rare";
-  if (level >= 4) return "fine";
-  return "plain";
+  if (level >= CONFIG.item.maxLevel) return "myth";
+  return gradeInfo(level).grade;
 }
 
 function gradeLabel(level) {
-  if (level >= 12) return "붕괴권";
-  if (level >= 10) return "위험";
-  if (level >= 5) return "불안정";
-  return "안정";
+  return gradeInfo(level).text;
+}
+
+function gradeInfo(level) {
+  return CONFIG.gradeLabels.find((label) => level >= label.minLevel) || CONFIG.gradeLabels.at(-1);
 }
 
 function renderHistory() {
