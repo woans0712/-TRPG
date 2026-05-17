@@ -227,6 +227,14 @@ label {
   background: color-mix(in srgb, var(--legend) 36%, transparent);
 }
 
+.item-frame.destroyed {
+  border-color: color-mix(in srgb, var(--danger) 70%, var(--line));
+}
+
+.item-frame.destroyed::before {
+  background: color-mix(in srgb, var(--danger) 32%, transparent);
+}
+
 .item-type,
 .flavor,
 .cooldown {

@@ -13,14 +13,11 @@ GitHub Pages와 Supabase로 돌아가는 강화 시뮬레이터입니다.
 - `storage.saveKey`: Supabase 프로필에 저장되는 게임 데이터 이름
 - `auth`: 닉네임 로그인용 내부 이메일 규칙
 - `game.item`: 장비 이름, 종류, 설명, 최대 강화 단계
-- `game.startingState`: 시작 골드, 파편, 기회, 집념
+- `game.startingState`: 시작 강화 단계, 기회, 파괴 상태
 - `game.attempt.max`: 최대 기회
 - `game.attempt.cooldownSeconds`: 기회 1개가 회복되는 시간
-- `game.pity`: 실패 보정 수치
 - `game.gradeLabels`: 단계 상태 문구
 - `game.levels[].success`: 단계별 성공 확률
-- `game.levels[].cost`: 단계별 골드 비용
-- `game.levels[].shards`: 단계별 파편 비용
 - `game.levels[].fail`: 실패 결과
 - `game.levels[].destroyChance`: 실패했을 때 추가로 파괴될 확률
 - `game.messages`: 성공/실패/파괴 문구

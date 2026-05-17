@@ -69,28 +69,21 @@
             </div>
 
             <button type="button" class="enhance-button" id="enhanceBtn">강화하기</button>
+            <button type="button" class="enhance-button secondary hidden" id="newItemBtn">새 장비 받기</button>
             <p class="cooldown" id="cooldownText"></p>
           </article>
 
           <aside class="side">
             <section class="panel">
-              <h2>자원</h2>
+              <h2>진행</h2>
               <div class="resource-grid">
                 <div>
                   <span>기회</span>
                   <strong id="attemptsText">0 / 10</strong>
                 </div>
                 <div>
-                  <span>골드</span>
-                  <strong id="coinsText">0</strong>
-                </div>
-                <div>
-                  <span>파편</span>
-                  <strong id="shardsText">0</strong>
-                </div>
-                <div>
-                  <span>집념</span>
-                  <strong id="pityText">0</strong>
+                  <span>장비 상태</span>
+                  <strong id="itemStateText">정상</strong>
                 </div>
               </div>
             </section>
@@ -99,12 +92,12 @@
               <h2>현재 단계</h2>
               <dl class="detail-list">
                 <div>
-                  <dt>강화 비용</dt>
-                  <dd id="costText">-</dd>
+                  <dt>최대 강화</dt>
+                  <dd id="maxLevelText">-</dd>
                 </div>
                 <div>
-                  <dt>소모 파편</dt>
-                  <dd id="shardCostText">-</dd>
+                  <dt>기회 회복</dt>
+                  <dd id="cooldownRuleText">-</dd>
                 </div>
                 <div>
                   <dt>설정 데이터</dt>
@@ -114,9 +107,9 @@
             </section>
 
             <section class="panel danger-zone">
-              <h2>초기화</h2>
-              <p>현재 장비와 자원을 처음 상태로 되돌립니다.</p>
-              <button type="button" class="danger" id="resetBtn">새 장비 받기</button>
+              <h2>관리자 초기화</h2>
+              <p>관리자만 전체 진행 상태와 기회를 처음 상태로 되돌릴 수 있습니다.</p>
+              <button type="button" class="danger hidden" id="adminResetBtn">전체 초기화</button>
             </section>
           </aside>
         </section>

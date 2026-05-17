@@ -54,6 +54,7 @@ function normalizeGame(saved) {
     ...base,
     ...(saved || {}),
     attempts: Math.min(saved?.attempts ?? base.attempts, CONFIG.attempt.max),
+    destroyed: Boolean(saved?.destroyed ?? base.destroyed),
     history: Array.isArray(saved?.history) ? saved.history.slice(0, 30) : [],
   };
 }
@@ -110,17 +111,16 @@ function currentRule() {
 }
 
 function successChance() {
-  if (state.game.level >= CONFIG.item.maxLevel) return 0;
+  if (state.game.destroyed || state.game.level >= CONFIG.item.maxLevel) return 0;
   const rule = currentRule();
-  const bonus = Math.min(state.game.pity * CONFIG.pity.bonusPerStack, CONFIG.pity.maxBonus);
-  return Math.min(100, rule.success + bonus);
+  return Math.min(100, rule.success);
 }
 
 function canEnhance() {
   if (!state.game) return false;
+  if (state.game.destroyed) return false;
   if (state.game.level >= CONFIG.item.maxLevel) return false;
-  const rule = currentRule();
-  return state.game.attempts > 0 && state.game.coins >= rule.cost && state.game.shards >= rule.shards;
+  return state.game.attempts > 0;
 }
 
 function secondsUntilAttempt() {
@@ -197,7 +197,6 @@ function render() {
   if (!loggedIn) return;
 
   refillAttempts();
-  const rule = currentRule();
   const chance = successChance();
 
   $("profileName").textContent = state.profile.nickname;
@@ -205,15 +204,17 @@ function render() {
   $("itemName").textContent = CONFIG.item.name;
   $("itemFlavor").textContent = CONFIG.item.flavor;
   $("levelText").textContent = `+${state.game.level}`;
-  $("successRate").textContent = state.game.level >= CONFIG.item.maxLevel ? "완성" : `${chance.toFixed(1)}%`;
+  $("successRate").textContent = state.game.destroyed
+    ? "파괴됨"
+    : state.game.level >= CONFIG.item.maxLevel
+      ? "완성"
+      : `${chance.toFixed(1)}%`;
   $("bestLevel").textContent = `+${state.game.bestLevel}`;
-  $("gradeText").textContent = gradeLabel(state.game.level);
+  $("gradeText").textContent = state.game.destroyed ? "파괴" : gradeLabel(state.game.level);
   $("attemptsText").textContent = `${state.game.attempts} / ${CONFIG.attempt.max}`;
-  $("coinsText").textContent = state.game.coins.toLocaleString("ko-KR");
-  $("shardsText").textContent = state.game.shards.toLocaleString("ko-KR");
-  $("pityText").textContent = `${state.game.pity}`;
-  $("costText").textContent = state.game.level >= CONFIG.item.maxLevel ? "완성됨" : `${rule.cost.toLocaleString("ko-KR")}G`;
-  $("shardCostText").textContent = state.game.level >= CONFIG.item.maxLevel ? "완성됨" : `${rule.shards}개`;
+  $("itemStateText").textContent = state.game.destroyed ? "파괴됨" : "정상";
+  $("maxLevelText").textContent = `+${CONFIG.item.maxLevel}`;
+  $("cooldownRuleText").textContent = `${CONFIG.attempt.cooldownSeconds}초마다 1회`;
 
   const remain = secondsUntilAttempt();
   $("cooldownText").textContent =
@@ -222,10 +223,18 @@ function render() {
       : `다음 기회까지 ${remain}초`;
 
   $("enhanceBtn").disabled = !canEnhance();
+  $("enhanceBtn").classList.toggle("hidden", state.game.destroyed);
   $("enhanceBtn").textContent = state.game.level >= CONFIG.item.maxLevel ? "최대 강화 완료" : "강화하기";
+  $("newItemBtn").classList.toggle("hidden", !state.game.destroyed);
+  $("adminResetBtn").classList.toggle("hidden", !isAdmin());
   $("itemFrame").dataset.grade = gradeName(state.game.level);
+  $("itemFrame").classList.toggle("destroyed", state.game.destroyed);
 
   renderHistory();
+}
+
+function isAdmin() {
+  return Boolean(state.profile?.is_admin || state.profile?.nickname === "뚜비");
 }
 
 function gradeName(level) {
@@ -285,8 +294,6 @@ async function enhance() {
   const roll = Math.random() * 100;
 
   state.game.attempts -= 1;
-  state.game.coins -= rule.cost;
-  state.game.shards -= rule.shards;
 
   if (state.game.attempts < CONFIG.attempt.max && !state.game.nextAttemptAt) {
     state.game.nextAttemptAt = new Date(Date.now() + CONFIG.attempt.cooldownSeconds * 1000).toISOString();
@@ -295,7 +302,6 @@ async function enhance() {
   if (roll < chance) {
     state.game.level = Math.min(CONFIG.item.maxLevel, state.game.level + 1);
     state.game.bestLevel = Math.max(state.game.bestLevel, state.game.level);
-    if (CONFIG.pity.resetOnSuccess) state.game.pity = 0;
     pushHistory({
       result: "success",
       title: `+${before} → +${state.game.level} 성공`,
@@ -304,7 +310,6 @@ async function enhance() {
   } else {
     const failureType = rollDestroy(rule) ? "destroy" : rule.fail;
     applyFailure(failureType);
-    state.game.pity += 1;
     pushHistory({
       result: failureType,
       title: `+${before} 강화 실패`,
@@ -327,11 +332,26 @@ function applyFailure(type) {
     state.game.level = Math.max(0, state.game.level - 2);
   } else if (type === "destroy") {
     state.game.level = 0;
+    state.game.destroyed = true;
   }
 }
 
-async function resetGame() {
+async function adminResetGame() {
+  if (!isAdmin()) return;
   state.game = defaultGame();
+  render();
+  queueSave();
+}
+
+async function receiveNewItem() {
+  if (!state.game?.destroyed) return;
+  state.game.level = 0;
+  state.game.destroyed = false;
+  pushHistory({
+    result: "system",
+    title: "새 장비 지급",
+    text: "파괴된 장비를 버리고 새 장비를 받았다. 남은 기회는 유지된다.",
+  });
   render();
   queueSave();
 }
@@ -453,7 +473,8 @@ $("authForm").addEventListener("submit", (event) => {
 
 $("registerBtn").addEventListener("click", () => auth("register"));
 $("enhanceBtn").addEventListener("click", enhance);
-$("resetBtn").addEventListener("click", resetGame);
+$("newItemBtn").addEventListener("click", receiveNewItem);
+$("adminResetBtn").addEventListener("click", adminResetGame);
 $("clearLogBtn").addEventListener("click", clearHistory);
 $("logoutBtn").addEventListener("click", async () => {
   await flushSave();

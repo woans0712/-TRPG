@@ -24,22 +24,14 @@ window.ENHANCE_BACKEND_DATA = {
 
     startingState: {
       level: 0,
-      coins: 12000,
-      shards: 20,
       attempts: 10,
       bestLevel: 0,
-      pity: 0,
+      destroyed: false,
     },
 
     attempt: {
       max: 10,
       cooldownSeconds: 45,
-    },
-
-    pity: {
-      bonusPerStack: 1.5,
-      maxBonus: 12,
-      resetOnSuccess: true,
     },
 
     gradeLabels: [
@@ -50,21 +42,21 @@ window.ENHANCE_BACKEND_DATA = {
     ],
 
     levels: [
-      { level: 0, success: 95, cost: 200, shards: 0, fail: "keep", destroyChance: 0 },
-      { level: 1, success: 90, cost: 350, shards: 0, fail: "keep", destroyChance: 0 },
-      { level: 2, success: 84, cost: 500, shards: 1, fail: "keep", destroyChance: 0 },
-      { level: 3, success: 76, cost: 750, shards: 1, fail: "keep", destroyChance: 0 },
-      { level: 4, success: 68, cost: 1000, shards: 2, fail: "keep", destroyChance: 0 },
-      { level: 5, success: 58, cost: 1400, shards: 2, fail: "downgrade", destroyChance: 0 },
-      { level: 6, success: 49, cost: 1800, shards: 3, fail: "downgrade", destroyChance: 0 },
-      { level: 7, success: 40, cost: 2300, shards: 3, fail: "downgrade", destroyChance: 0 },
-      { level: 8, success: 32, cost: 2900, shards: 4, fail: "downgrade", destroyChance: 0 },
-      { level: 9, success: 25, cost: 3600, shards: 5, fail: "downgrade", destroyChance: 0 },
-      { level: 10, success: 18, cost: 4600, shards: 6, fail: "crack", destroyChance: 6 },
-      { level: 11, success: 13, cost: 5800, shards: 8, fail: "crack", destroyChance: 10 },
-      { level: 12, success: 9, cost: 7200, shards: 10, fail: "crack", destroyChance: 18 },
-      { level: 13, success: 6, cost: 9000, shards: 12, fail: "crack", destroyChance: 28 },
-      { level: 14, success: 3, cost: 12000, shards: 15, fail: "crack", destroyChance: 40 },
+      { level: 0, success: 95, fail: "keep", destroyChance: 0 },
+      { level: 1, success: 90, fail: "keep", destroyChance: 0 },
+      { level: 2, success: 84, fail: "keep", destroyChance: 0 },
+      { level: 3, success: 76, fail: "keep", destroyChance: 0 },
+      { level: 4, success: 68, fail: "keep", destroyChance: 0 },
+      { level: 5, success: 58, fail: "downgrade", destroyChance: 0 },
+      { level: 6, success: 49, fail: "downgrade", destroyChance: 0 },
+      { level: 7, success: 40, fail: "downgrade", destroyChance: 0 },
+      { level: 8, success: 32, fail: "downgrade", destroyChance: 0 },
+      { level: 9, success: 25, fail: "downgrade", destroyChance: 0 },
+      { level: 10, success: 18, fail: "crack", destroyChance: 6 },
+      { level: 11, success: 13, fail: "crack", destroyChance: 10 },
+      { level: 12, success: 9, fail: "crack", destroyChance: 18 },
+      { level: 13, success: 6, fail: "crack", destroyChance: 28 },
+      { level: 14, success: 3, fail: "crack", destroyChance: 40 },
     ],
 
     messages: {
