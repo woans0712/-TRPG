@@ -56,8 +56,21 @@ function normalizeGame(saved) {
     ...(saved || {}),
     attempts: Math.min(saved?.attempts ?? base.attempts, CONFIG.attempt.max),
     destroyed: Boolean(saved?.destroyed ?? base.destroyed),
-    history: Array.isArray(saved?.history) ? saved.history.slice(0, 30) : [],
+    history: pruneHistory(Array.isArray(saved?.history) ? saved.history : []),
   };
+}
+
+function pruneHistory(history) {
+  const now = Date.now();
+  const maxAge = CONFIG.history.retentionDays * 24 * 60 * 60 * 1000;
+  const normalized = history
+    .map((entry) => ({
+      ...entry,
+      createdAt: entry.createdAt || new Date(now).toISOString(),
+    }))
+    .filter((entry) => now - new Date(entry.createdAt).getTime() <= maxAge);
+
+  return normalized.slice(0, CONFIG.history.maxStored);
 }
 
 function readSavedGame(profile) {
@@ -271,6 +284,10 @@ function gradeInfo(level) {
 function renderHistory() {
   const list = $("historyList");
   list.innerHTML = "";
+  const beforeCount = state.game.history.length;
+  state.game.history = pruneHistory(state.game.history);
+  if (state.game.history.length !== beforeCount) queueSave();
+  list.classList.toggle("scrollable", state.game.history.length >= CONFIG.history.scrollAfter);
 
   if (state.game.history.length === 0) {
     const empty = document.createElement("li");
@@ -350,7 +367,7 @@ function randomPick(items) {
 }
 
 function pushHistory(entry) {
-  state.game.history = [entry, ...state.game.history].slice(0, 30);
+  state.game.history = pruneHistory([{ ...entry, createdAt: new Date().toISOString() }, ...state.game.history]);
 }
 
 async function enhance() {

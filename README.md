@@ -16,6 +16,9 @@ GitHub Pages와 Supabase로 돌아가는 강화 시뮬레이터입니다.
 - `game.startingState`: 시작 강화 단계, 기회, 파괴 상태
 - `game.attempt.max`: 최대 기회
 - `game.attempt.cooldownSeconds`: 기회 1개가 회복되는 시간
+- `game.history.retentionDays`: 강화 기록 보관 일수
+- `game.history.scrollAfter`: 기록 목록 스크롤 시작 개수
+- `game.history.maxStored`: 저장할 최대 기록 개수
 - `game.gradeLabels`: 단계 상태 문구
 - `game.levels[].success`: 단계별 성공 확률
 - `game.levels[].fail`: 실패 결과

@@ -34,6 +34,12 @@ window.ENHANCE_BACKEND_DATA = {
       cooldownSeconds: 45,
     },
 
+    history: {
+      retentionDays: 2,
+      scrollAfter: 5,
+      maxStored: 50,
+    },
+
     gradeLabels: [
       { minLevel: 12, text: "붕괴권", grade: "legend" },
       { minLevel: 10, text: "위험", grade: "rare" },

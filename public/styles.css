@@ -433,6 +433,12 @@ button.danger.compact {
   gap: 8px;
 }
 
+#historyList.scrollable {
+  max-height: 360px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
 #historyList li {
   border: 1px solid var(--line);
   border-radius: 8px;
