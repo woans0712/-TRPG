@@ -45,19 +45,30 @@ function defaultGame() {
     ...CONFIG.startingState,
     history: [],
     nextAttemptAt: null,
+    cooldownSeconds: CONFIG.attempt.cooldownSeconds,
     version: BACKEND.version,
   };
 }
 
 function normalizeGame(saved) {
   const base = defaultGame();
-  return {
+  const game = {
     ...base,
     ...(saved || {}),
     attempts: Math.min(saved?.attempts ?? base.attempts, CONFIG.attempt.max),
     destroyed: Boolean(saved?.destroyed ?? base.destroyed),
     history: pruneHistory(Array.isArray(saved?.history) ? saved.history : []),
   };
+  syncCooldownRule(game);
+  return game;
+}
+
+function syncCooldownRule(game) {
+  if (game.cooldownSeconds === CONFIG.attempt.cooldownSeconds) return;
+  game.cooldownSeconds = CONFIG.attempt.cooldownSeconds;
+  if (game.attempts < CONFIG.attempt.max) {
+    game.nextAttemptAt = new Date(Date.now() + CONFIG.attempt.cooldownSeconds * 1000).toISOString();
+  }
 }
 
 function pruneHistory(history) {
