@@ -42,7 +42,7 @@ window.ENHANCE_BACKEND_DATA = {
     // 기회 관련 설정입니다.
     attempt: {
       max: 10, // 기회 최대치
-      cooldownSeconds: 45, // 기회 1개 회복에 걸리는 시간(초)
+      cooldownSeconds: 600, // 기회 1개 회복에 걸리는 시간(초)
     },
 
     // 강화 기록 관련 설정입니다.
@@ -87,7 +87,7 @@ window.ENHANCE_BACKEND_DATA = {
       { level: 12, name: "건물 한채 있는 뚜비", success: 9, fail: "crack", destroyChance: 3 },
       { level: 13, name: "회장님이랑 밥먹는 뚜비", success: 6, fail: "crack", destroyChance: 5 },
       { level: 14, name: "회사 사버린 뚜비", success: 3, fail: "crack", destroyChance: 7 },
-      { level: 15, name: "은퇴한 뚜비", success: 0, fail: "keep", destroyChance: 10 },
+      { level: 15, name: "은퇴한 뚜비", success: 0, fail: "keep", destroyChance: 0 },
     ],
 
     // 강화 결과 문구입니다.
@@ -111,7 +111,6 @@ window.ENHANCE_BACKEND_DATA = {
         "고장날뻔했다!",
         "식은땀이 흘렀다.",
         "아슬아슬했다.",
-        "기적적으로 유지됐다.",
       ],
       downgrade: [
         "커피를 쏘게됐다...",
@@ -130,24 +129,17 @@ window.ENHANCE_BACKEND_DATA = {
         "손이 떨리기 시작했다.",
         "통장이 비명을 질렀다.",
         "현실을 보게됐다.",
-        "강화의 신이 떠났다.",
         "머리가 띵해졌다.",
       ],
       destroy: [
         "전재산이 날아갔다!!!",
         "눈물이 앞을 가린다...",
-        "강화 버튼을 후회했다.",
-        "장비가 하늘로 갔다.",
         "한강뷰를 검색한다.",
-        "복구권부터 찾는다.",
+        "은행 대출부터 찾는다.",
         "잠시 말을 잃었다.",
-        "게임을 종료했다.",
       ],
       max: [
-        "더 강해질 수 없다!",
-        "신의 영역에 도달했다!",
-        "강화의 끝을 봤다!",
-        "이제 무서울게 없다!",
+        "인생 탈출!",
       ],
     },
   },
