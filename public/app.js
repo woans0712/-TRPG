@@ -127,8 +127,8 @@ function packedInventory(game) {
   };
 }
 
-function currentRule() {
-  return CONFIG.levels.find((rule) => rule.level === state.game.level) || CONFIG.levels.at(-1);
+function currentRule(level = state.game.level) {
+  return CONFIG.levels.find((rule) => rule.level === level) || CONFIG.levels.at(-1);
 }
 
 function successChance() {
@@ -247,7 +247,7 @@ function render() {
 
   $("profileName").textContent = state.profile.nickname;
   $("itemType").textContent = CONFIG.item.type;
-  $("itemName").textContent = CONFIG.item.name;
+  $("itemName").textContent = currentItemName();
   $("itemFlavor").textContent = CONFIG.item.flavor;
   $("levelText").textContent = `+${state.game.level}`;
   $("successRate").textContent = state.game.destroyed
@@ -291,6 +291,11 @@ function gradeName(level) {
 
 function gradeInfo(level) {
   return CONFIG.gradeLabels.find((label) => level >= label.minLevel) || CONFIG.gradeLabels.at(-1);
+}
+
+function currentItemName() {
+  if (state.game.destroyed) return `부서진 ${CONFIG.item.name}`;
+  return currentRule().name || CONFIG.item.name;
 }
 
 function renderHistory() {
