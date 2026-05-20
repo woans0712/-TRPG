@@ -42,7 +42,7 @@ window.ENHANCE_BACKEND_DATA = {
     // 기회 관련 설정입니다.
     attempt: {
       max: 10, // 기회 최대치
-      cooldownSeconds: 600, // 기회 1개 회복에 걸리는 시간(초)
+      cooldownSeconds: 360, // 기회 1개 회복에 걸리는 시간(초)
     },
 
     // 강화 기록 관련 설정입니다.
