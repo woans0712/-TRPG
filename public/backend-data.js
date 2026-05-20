@@ -84,9 +84,9 @@ window.ENHANCE_BACKEND_DATA = {
       { level: 9, name: "연봉협상 이긴 뚜비", success: 32, fail: "downgrade", destroyChance: 0 },
       { level: 10, name: "회사 지분 있는 뚜비", success: 28, fail: "crack", destroyChance: 1 },
       { level: 11, name: "출근 안 해도 되는 뚜비", success: 22, fail: "crack", destroyChance: 3 },
-      { level: 12, name: "건물 한채 있는 뚜비", success: 35, fail: "keep", destroyChance: 5 },
-      { level: 13, name: "회장님이랑 밥먹는 뚜비", success: 30, fail: "keep", destroyChance: 7 },
-      { level: 14, name: "회사 사버린 뚜비", success: 25, fail: "downgrade", destroyChance: 10 },
+      { level: 12, name: "건물 한채 있는 뚜비", success: 30, fail: "keep", destroyChance: 5 },
+      { level: 13, name: "회장님이랑 밥먹는 뚜비", success: 25, fail: "keep", destroyChance: 7 },
+      { level: 14, name: "회사 사버린 뚜비", success: 20, fail: "downgrade", destroyChance: 10 },
       { level: 15, name: "은퇴한 뚜비", success: 0, fail: "keep", destroyChance: 0 },
     ],
 
