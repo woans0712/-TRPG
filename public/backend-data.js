@@ -52,7 +52,8 @@ window.ENHANCE_BACKEND_DATA = {
       maxStored: 50, // 최대 몇 개까지 저장할지
     },
 
-    // 강화 단계에 따라 표시할 상태 문구입니다.
+    // 강화 단계에 따라 장비 빛 색상을 바꾸는 설정입니다.
+    // text는 지금 화면에 표시하지 않지만, 나중에 다시 쓸 수 있게 남겨둡니다.
     gradeLabels: [
       { minLevel: 12, text: "붕괴권", grade: "legend" },
       { minLevel: 10, text: "위험", grade: "rare" },

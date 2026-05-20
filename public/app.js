@@ -242,6 +242,7 @@ function render() {
   if (!loggedIn) return;
 
   refillAttempts();
+  const rule = currentRule();
   const chance = successChance();
 
   $("profileName").textContent = state.profile.nickname;
@@ -255,7 +256,7 @@ function render() {
       ? "완성"
       : `${chance.toFixed(1)}%`;
   $("bestLevel").textContent = `+${state.game.bestLevel}`;
-  $("gradeText").textContent = state.game.destroyed ? "파괴" : gradeLabel(state.game.level);
+  $("breakRateText").textContent = state.game.destroyed ? "파괴됨" : `${rule.destroyChance || 0}%`;
   $("attemptsText").textContent = `${state.game.attempts} / ${CONFIG.attempt.max}`;
   $("itemStateText").textContent = state.game.destroyed ? "파괴됨" : "정상";
   $("maxLevelText").textContent = `+${CONFIG.item.maxLevel}`;
@@ -286,10 +287,6 @@ function isAdmin() {
 function gradeName(level) {
   if (level >= CONFIG.item.maxLevel) return "myth";
   return gradeInfo(level).grade;
-}
-
-function gradeLabel(level) {
-  return gradeInfo(level).text;
 }
 
 function gradeInfo(level) {
