@@ -21,4 +21,7 @@ Write-Host "Deploying judge-action function"
 Write-Host "Deploying clear-messages function"
 & $Supabase functions deploy clear-messages
 
+Write-Host "Deploying admin-manage-user function"
+& $Supabase functions deploy admin-manage-user
+
 Write-Host "Done. Supabase Edge Functions are deployed."

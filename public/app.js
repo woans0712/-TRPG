@@ -127,15 +127,6 @@ function packedInventory(game) {
   };
 }
 
-function inventoryWithGame(profile, game) {
-  const inventory = profile?.inventory;
-  const current = inventory && !Array.isArray(inventory) ? inventory : {};
-  return {
-    ...current,
-    [SAVE_KEY]: game,
-  };
-}
-
 function currentRule() {
   return CONFIG.levels.find((rule) => rule.level === state.game.level) || CONFIG.levels.at(-1);
 }
@@ -210,6 +201,30 @@ async function flushSave() {
     state.saveInFlight = false;
     if (state.saveQueued) queueSave();
   }
+}
+
+async function callFunction(name, body) {
+  const { data, error } = await state.supabase.functions.invoke(name, { body });
+  if (error) {
+    let message = error.message || "관리자 작업에 실패했습니다.";
+    const response = error.context;
+    if (response) {
+      try {
+        const payload = await response.clone().json();
+        message = payload.error || payload.message || message;
+      } catch {
+        try {
+          const text = await response.clone().text();
+          if (text) message = text;
+        } catch {
+          // Keep the original error message.
+        }
+      }
+    }
+    throw new Error(message);
+  }
+  if (data?.error) throw new Error(data.error);
+  return data;
 }
 
 function setAuthError(message) {
@@ -496,9 +511,12 @@ async function resetUserProfile(userId) {
   const target = state.profiles.find((profile) => profile.id === userId);
   if (!target) return;
 
-  const inventory = inventoryWithGame(target, defaultGame());
-  const { error } = await state.supabase.from("profiles").update({ inventory }).eq("id", userId);
-  if (error) {
+  try {
+    await callFunction("admin-manage-user", {
+      action: "reset",
+      target_user_id: userId,
+    });
+  } catch (error) {
     alert(error.message);
     return;
   }
@@ -519,8 +537,12 @@ async function deleteUserProfile(userId) {
   const ok = confirm(`${target.nickname} 유저 데이터를 삭제할까요?`);
   if (!ok) return;
 
-  const { error } = await state.supabase.from("profiles").delete().eq("id", userId);
-  if (error) {
+  try {
+    await callFunction("admin-manage-user", {
+      action: "delete",
+      target_user_id: userId,
+    });
+  } catch (error) {
     alert(error.message);
     return;
   }
