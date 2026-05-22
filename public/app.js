@@ -257,8 +257,21 @@ function showGame(loggedIn) {
   $("gameView").classList.toggle("hidden", !loggedIn);
 }
 
+function canAccessTitle2() {
+  return isAdmin() || state.profile?.nickname === "미미";
+}
+
 function renderGameTabs() {
+  const title2Allowed = canAccessTitle2();
+  if (!title2Allowed && state.activeGame === "title2") {
+    state.activeGame = "enhance";
+  }
+
   document.querySelectorAll("[data-game-tab]").forEach((button) => {
+    if (button.dataset.gameTab === "title2") {
+      button.classList.toggle("hidden", !title2Allowed);
+    }
+
     const active = button.dataset.gameTab === state.activeGame;
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
@@ -700,6 +713,7 @@ $("userList").addEventListener("click", async (event) => {
 $("clearLogBtn").addEventListener("click", clearHistory);
 document.querySelectorAll("[data-game-tab]").forEach((button) => {
   button.addEventListener("click", () => {
+    if (button.dataset.gameTab === "title2" && !canAccessTitle2()) return;
     state.activeGame = button.dataset.gameTab;
     render();
   });
