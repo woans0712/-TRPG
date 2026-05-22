@@ -22,6 +22,8 @@ type Game2State = {
   currentTurn: number | null;
   idleTurns: number;
   lastActionTurn: number | null;
+  pendingTransferTargetId: string | null;
+  pendingTransferTurn: number | null;
   forcedStatus: "active" | "ended" | null;
   finalHolderId: string | null;
   finalHolderName: string | null;
@@ -68,6 +70,8 @@ function defaultState(dateKey: string): Game2State {
     currentTurn: null,
     idleTurns: 0,
     lastActionTurn: null,
+    pendingTransferTargetId: null,
+    pendingTransferTurn: null,
     forcedStatus: null,
     finalHolderId: null,
     finalHolderName: null,
@@ -148,6 +152,8 @@ function normalizeState(raw: unknown, dateKey: string): Game2State {
     currentTurn: Number.isInteger(saved.currentTurn) ? saved.currentTurn as number : null,
     idleTurns: Number.isInteger(saved.idleTurns) ? saved.idleTurns as number : 0,
     lastActionTurn: Number.isInteger(saved.lastActionTurn) ? saved.lastActionTurn as number : null,
+    pendingTransferTargetId: typeof saved.pendingTransferTargetId === "string" ? saved.pendingTransferTargetId : null,
+    pendingTransferTurn: Number.isInteger(saved.pendingTransferTurn) ? saved.pendingTransferTurn as number : null,
     forcedStatus: saved.forcedStatus === "active" || saved.forcedStatus === "ended" ? saved.forcedStatus : null,
     finalHolderId: typeof saved.finalHolderId === "string" ? saved.finalHolderId : null,
     finalHolderName: typeof saved.finalHolderName === "string" ? saved.finalHolderName : null,
@@ -172,6 +178,18 @@ function effectivePhase(state: Game2State, phase: { status: string; targetTurn: 
   return phase;
 }
 
+function applyPendingTransfer(state: Game2State) {
+  if (!state.pendingTransferTargetId) return false;
+  const target = state.participants.find((participant) => participant.id === state.pendingTransferTargetId);
+  state.pendingTransferTargetId = null;
+  state.pendingTransferTurn = null;
+  if (!target) return false;
+
+  state.holderId = target.id;
+  addLog(state, "박스가 다른 참여자에게 넘어갔습니다.");
+  return true;
+}
+
 function advanceState(state: Game2State, targetTurn: number | null) {
   if (targetTurn === null || state.participants.length === 0) return;
 
@@ -190,6 +208,13 @@ function advanceState(state: Game2State, targetTurn: number | null) {
   if (targetTurn <= state.currentTurn) return;
 
   if (config.testMode && targetTurn - state.currentTurn > 3) {
+    if (
+      state.pendingTransferTurn !== null
+      && state.pendingTransferTurn >= state.currentTurn
+      && state.pendingTransferTurn < targetTurn
+    ) {
+      applyPendingTransfer(state);
+    }
     state.currentTurn = targetTurn;
     state.idleTurns = 0;
     return;
@@ -199,6 +224,9 @@ function advanceState(state: Game2State, targetTurn: number | null) {
     if (!state.holderId) break;
 
     if (state.lastActionTurn === turn) {
+      if (state.pendingTransferTurn === turn) {
+        applyPendingTransfer(state);
+      }
       state.idleTurns = 0;
       continue;
     }
@@ -240,6 +268,9 @@ function publicState(
     ...state,
     holderId: revealHolder ? visibleHolderId : null,
     realHolderId: undefined,
+    lastActionTurn: viewerHasBox ? state.lastActionTurn : null,
+    pendingTransferTargetId: undefined,
+    pendingTransferTurn: undefined,
     status,
     currentTurn,
     currentTurnLabel: turnLabel(currentTurn),
@@ -297,6 +328,8 @@ serve(async (req) => {
       state.currentTurn = null;
       state.idleTurns = 0;
       state.lastActionTurn = null;
+      state.pendingTransferTargetId = null;
+      state.pendingTransferTurn = null;
       state.finalHolderId = null;
       state.finalHolderName = null;
       state.resultRecorded = false;
@@ -341,10 +374,10 @@ serve(async (req) => {
       if (!target) throw new Error("넘길 대상을 찾을 수 없습니다.");
       if (target.id === profile.id) throw new Error("자기 자신에게는 넘길 수 없습니다.");
 
-      state.holderId = target.id;
+      state.pendingTransferTargetId = target.id;
+      state.pendingTransferTurn = activePhase.targetTurn;
       state.idleTurns = 0;
       state.lastActionTurn = activePhase.targetTurn;
-      addLog(state, "박스가 다른 참여자에게 넘어갔습니다.");
     }
 
     if (action === "remove_participant") {
@@ -353,10 +386,17 @@ serve(async (req) => {
       const target = state.participants.find((participant) => participant.id === targetUserId);
       if (!target) throw new Error("제거할 참여자를 찾을 수 없습니다.");
       state.participants = state.participants.filter((participant) => participant.id !== targetUserId);
+      if (state.pendingTransferTargetId === targetUserId) {
+        state.pendingTransferTargetId = null;
+        state.pendingTransferTurn = null;
+        if (state.lastActionTurn === activePhase.targetTurn) state.lastActionTurn = null;
+      }
       if (state.holderId === targetUserId) {
         const nextHolder = randomParticipant(state.participants);
         state.holderId = nextHolder?.id || null;
         state.idleTurns = 0;
+        state.pendingTransferTargetId = null;
+        state.pendingTransferTurn = null;
       }
       addLog(state, `${target.nickname}님이 참여자 목록에서 제거되었습니다.`);
     }
