@@ -383,7 +383,9 @@ function isGame2Holder() {
 function renderGame2() {
   const game = state.game2;
   $("game2Title").textContent = GAME2.title;
-  $("game2TimeText").textContent = `${String(GAME2.startHour).padStart(2, "0")}:00 - ${String(GAME2.endHour).padStart(2, "0")}:00`;
+  $("game2TimeText").textContent = GAME2.testMode
+    ? `테스트: ${GAME2.turnMinutes}분 / 1턴`
+    : `${String(GAME2.startHour).padStart(2, "0")}:00 - ${String(GAME2.endHour).padStart(2, "0")}:00`;
 
   if (!game || game.error) {
     $("game2PhaseText").textContent = "대기";
@@ -414,7 +416,7 @@ function renderGame2() {
   $("game2TurnText").textContent = game.currentTurnLabel || "-";
   $("game2MyStateText").textContent = holding ? "내가 박스를 보유 중" : joined ? "참여 중" : "미참여";
   $("game2StatusText").textContent = game.message || "";
-  $("game2JoinBtn").disabled = game.status !== "registration" || joined;
+  $("game2JoinBtn").disabled = !game.joinOpen || !GAME2.joinButtonEnabled || joined;
   $("game2JoinBtn").textContent = joined ? "참여 완료" : "참여하기";
 
   const passTargets = participants.filter((item) => item.id !== state.profile.id);

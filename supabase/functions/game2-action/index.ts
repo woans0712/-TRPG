@@ -26,6 +26,9 @@ type Game2State = {
 };
 
 const config = {
+  testMode: true,
+  turnMinutes: 1,
+  joinOpen: true,
   startHour: 9,
   endHour: 21,
   maxCarryTurns: 1,
@@ -49,6 +52,7 @@ function kstParts(now = new Date()) {
     dateKey: `${value("year")}-${value("month")}-${value("day")}`,
     hour: Number(value("hour")),
     minute: Number(value("minute")),
+    totalMinutes: Number(value("hour")) * 60 + Number(value("minute")),
   };
 }
 
@@ -64,14 +68,32 @@ function defaultState(dateKey: string): Game2State {
   };
 }
 
-function phaseFor(hour: number) {
-  if (hour < config.startHour) return { status: "registration", targetTurn: null };
-  if (hour >= config.endHour) return { status: "ended", targetTurn: config.endHour - config.startHour };
-  return { status: "active", targetTurn: hour - config.startHour };
+function phaseFor(hour: number, totalMinutes: number) {
+  if (config.testMode) {
+    return {
+      status: "active",
+      targetTurn: Math.floor(totalMinutes / config.turnMinutes),
+      joinOpen: config.joinOpen,
+    };
+  }
+
+  if (hour < config.startHour) return { status: "registration", targetTurn: null, joinOpen: true };
+  if (hour >= config.endHour) {
+    return { status: "ended", targetTurn: config.endHour - config.startHour, joinOpen: false };
+  }
+  return { status: "active", targetTurn: hour - config.startHour, joinOpen: false };
 }
 
 function turnLabel(turn: number | null) {
   if (turn === null) return "-";
+  if (config.testMode) {
+    const startMinute = turn * config.turnMinutes;
+    const endMinute = startMinute + config.turnMinutes;
+    const startHour = Math.floor(startMinute / 60) % 24;
+    const endHour = Math.floor(endMinute / 60) % 24;
+    return `${String(startHour).padStart(2, "0")}:${String(startMinute % 60).padStart(2, "0")} - ${String(endHour).padStart(2, "0")}:${String(endMinute % 60).padStart(2, "0")}`;
+  }
+
   const start = config.startHour + turn;
   const end = Math.min(start + 1, config.endHour);
   return `${String(start).padStart(2, "0")}:00 - ${String(end).padStart(2, "0")}:00`;
@@ -113,7 +135,7 @@ function advanceState(state: Game2State, targetTurn: number | null) {
     const firstHolder = randomParticipant(state.participants);
     state.holderId = firstHolder?.id || null;
     state.idleTurns = 0;
-    if (firstHolder) addLog(state, `${firstHolder.nickname}님이 첫 ${config.startHour}시 박스를 받았습니다.`);
+    if (firstHolder) addLog(state, `${firstHolder.nickname}님이 첫 박스를 받았습니다.`);
   }
 
   if (state.currentTurn === null) {
@@ -122,6 +144,12 @@ function advanceState(state: Game2State, targetTurn: number | null) {
   }
 
   if (targetTurn <= state.currentTurn) return;
+
+  if (config.testMode && targetTurn - state.currentTurn > 3) {
+    state.currentTurn = targetTurn;
+    state.idleTurns = 0;
+    return;
+  }
 
   for (let turn = state.currentTurn; turn < targetTurn; turn += 1) {
     if (!state.holderId) break;
@@ -144,9 +172,11 @@ function advanceState(state: Game2State, targetTurn: number | null) {
   state.currentTurn = targetTurn;
 }
 
-function publicState(state: Game2State, status: string, targetTurn: number | null) {
+function publicState(state: Game2State, status: string, targetTurn: number | null, joinOpen: boolean) {
   const currentTurn = status === "active" ? targetTurn : state.currentTurn;
-  let message = "아침 9시 이전에 참여하면 오늘 게임2에 들어갑니다.";
+  let message = config.testMode
+    ? "테스트 모드입니다. 1분마다 새 타임으로 넘어갑니다."
+    : "아침 9시 이전에 참여하면 오늘 게임2에 들어갑니다.";
   if (status === "active") {
     message = state.holderId
       ? "박스를 가진 사람만 이번 타임에 원하는 참여자에게 넘길 수 있습니다."
@@ -159,6 +189,7 @@ function publicState(state: Game2State, status: string, targetTurn: number | nul
     status,
     currentTurn,
     currentTurnLabel: turnLabel(currentTurn),
+    joinOpen,
     message,
   };
 }
@@ -188,8 +219,8 @@ serve(async (req) => {
       .single();
     if (profileError || !profile) throw new Error("프로필을 찾을 수 없습니다.");
 
-    const { dateKey, hour } = kstParts();
-    const phase = phaseFor(hour);
+    const { dateKey, hour, totalMinutes } = kstParts();
+    const phase = phaseFor(hour, totalMinutes);
     const { data: row, error: stateError } = await supabase
       .from("game2_state")
       .select("data")
@@ -202,7 +233,7 @@ serve(async (req) => {
     advanceState(state, phase.targetTurn);
 
     if (action === "join") {
-      if (phase.status !== "registration") throw new Error("게임2 참여는 아침 9시 이전에만 가능합니다.");
+      if (!phase.joinOpen) throw new Error("지금은 게임2 참여가 닫혀 있습니다.");
       const exists = state.participants.some((participant) => participant.id === profile.id);
       if (!exists) {
         state.participants.push({
@@ -244,7 +275,7 @@ serve(async (req) => {
     }
 
     return Response.json(
-      { ok: true, state: publicState(state, phase.status, phase.targetTurn) },
+      { ok: true, state: publicState(state, phase.status, phase.targetTurn, phase.joinOpen) },
       { headers: corsHeaders },
     );
   } catch (error) {
