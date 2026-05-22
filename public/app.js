@@ -421,7 +421,13 @@ function renderGame2() {
   $("game2PhaseText").textContent = statusLabels[game.status] || "대기";
   $("game2HolderName").textContent = holderName;
   $("game2TurnText").textContent = game.currentTurnLabel || "-";
-  $("game2MyStateText").textContent = holding ? "내가 박스를 보유 중" : joined ? "참여 중" : "미참여";
+  $("game2MyStateText").textContent = game.status === "ended"
+    ? "게임 종료"
+    : holding
+      ? "내가 박스를 보유 중"
+      : joined
+        ? "참여 중"
+        : "미참여";
   $("game2StatusText").textContent = game.message || "";
   $("game2JoinBtn").disabled = !game.joinOpen || !GAME2.joinButtonEnabled || joined;
   $("game2JoinBtn").textContent = joined ? "참여 완료" : "참여하기";

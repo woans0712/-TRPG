@@ -25,6 +25,7 @@ type Game2State = {
   forcedStatus: "active" | "ended" | null;
   finalHolderId: string | null;
   finalHolderName: string | null;
+  resultRecorded: boolean;
   log: LogEntry[];
 };
 
@@ -70,6 +71,7 @@ function defaultState(dateKey: string): Game2State {
     forcedStatus: null,
     finalHolderId: null,
     finalHolderName: null,
+    resultRecorded: false,
     log: [],
   };
 }
@@ -124,6 +126,17 @@ function captureFinalHolder(state: Game2State) {
   state.finalHolderName = state.holderId ? participantName(state, state.holderId) : null;
 }
 
+function finishGame(state: Game2State) {
+  if (state.resultRecorded) return;
+  captureFinalHolder(state);
+  const winner = state.finalHolderName || "없음";
+  const participantNames = state.participants.map((participant) => participant.nickname).join(", ") || "없음";
+  addLog(state, `참여자: ${participantNames}`);
+  addLog(state, `결과 발표: 우승자 ${winner}`);
+  state.participants = [];
+  state.resultRecorded = true;
+}
+
 function normalizeState(raw: unknown, dateKey: string): Game2State {
   const saved = raw && typeof raw === "object" ? raw as Partial<Game2State> : {};
   if (saved.dateKey !== dateKey) return defaultState(dateKey);
@@ -138,6 +151,7 @@ function normalizeState(raw: unknown, dateKey: string): Game2State {
     forcedStatus: saved.forcedStatus === "active" || saved.forcedStatus === "ended" ? saved.forcedStatus : null,
     finalHolderId: typeof saved.finalHolderId === "string" ? saved.finalHolderId : null,
     finalHolderName: typeof saved.finalHolderName === "string" ? saved.finalHolderName : null,
+    resultRecorded: Boolean(saved.resultRecorded),
     log: Array.isArray(saved.log) ? saved.log.slice(0, config.logLimit) : [],
   };
 }
@@ -279,17 +293,19 @@ serve(async (req) => {
     if (action === "start") {
       if (!profile.is_admin) throw new Error("관리자만 게임을 진행할 수 있습니다.");
       state.forcedStatus = "active";
+      state.holderId = null;
+      state.currentTurn = null;
+      state.idleTurns = 0;
+      state.lastActionTurn = null;
       state.finalHolderId = null;
       state.finalHolderName = null;
+      state.resultRecorded = false;
       addLog(state, "관리자가 게임을 진행 상태로 변경했습니다.");
     }
 
     if (action === "end") {
       if (!profile.is_admin) throw new Error("관리자만 게임을 종료할 수 있습니다.");
-      captureFinalHolder(state);
       state.forcedStatus = "ended";
-      state.participants = state.participants.filter((participant) => participant.id !== profile.id);
-      addLog(state, "관리자가 게임을 종료했습니다.");
     }
 
     const activePhase = effectivePhase(state, phase);
@@ -297,6 +313,10 @@ serve(async (req) => {
 
     if (activePhase.status === "ended" && !state.finalHolderId && state.holderId) {
       captureFinalHolder(state);
+    }
+
+    if (activePhase.status === "ended") {
+      finishGame(state);
     }
 
     if (action === "join") {
