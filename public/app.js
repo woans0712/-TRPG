@@ -377,7 +377,7 @@ function isGame2Participant() {
 }
 
 function isGame2Holder() {
-  return state.game2?.holderId === state.profile?.id;
+  return Boolean(state.game2?.viewerHasBox);
 }
 
 function renderGame2() {
@@ -395,6 +395,7 @@ function renderGame2() {
     $("game2MyStateText").textContent = "-";
     $("game2JoinBtn").disabled = true;
     $("game2PassBtn").disabled = true;
+    $("game2AdminPanel").classList.toggle("hidden", !isAdmin());
     renderGame2Participants([]);
     renderGame2Targets([]);
     renderGame2Log([]);
@@ -409,7 +410,13 @@ function renderGame2() {
     active: "진행 중",
     ended: "결과 정리",
   };
-  const holderName = game.holderId ? participantName(game.holderId) : "아직 없음";
+  const holderName = game.status === "ended" && game.holderId
+    ? participantName(game.holderId)
+    : holding
+      ? "내가 보유 중"
+      : game.holderHidden
+        ? "비공개"
+        : "아직 없음";
 
   $("game2PhaseText").textContent = statusLabels[game.status] || "대기";
   $("game2HolderName").textContent = holderName;
@@ -418,6 +425,7 @@ function renderGame2() {
   $("game2StatusText").textContent = game.message || "";
   $("game2JoinBtn").disabled = !game.joinOpen || !GAME2.joinButtonEnabled || joined;
   $("game2JoinBtn").textContent = joined ? "참여 완료" : "참여하기";
+  $("game2AdminPanel").classList.toggle("hidden", !isAdmin());
 
   const passTargets = participants.filter((item) => item.id !== state.profile.id);
   const alreadyActed = game.lastActionTurn === game.currentTurn;
@@ -443,13 +451,21 @@ function renderGame2Participants(participants) {
   participants.forEach((participant) => {
     const row = document.createElement("div");
     row.className = "game2-participant";
-    row.classList.toggle("current", participant.id === state.game2?.holderId);
 
     const name = document.createElement("strong");
     const meta = document.createElement("span");
     name.textContent = participant.nickname;
-    meta.textContent = participant.id === state.game2?.holderId ? `${GAME2.itemName} 보유` : "대기";
+    meta.textContent = "참여 중";
     row.append(name, meta);
+    if (isAdmin()) {
+      const removeButton = document.createElement("button");
+      removeButton.type = "button";
+      removeButton.className = "danger compact";
+      removeButton.dataset.action = "game2-remove";
+      removeButton.dataset.userId = participant.id;
+      removeButton.textContent = "제거";
+      row.appendChild(removeButton);
+    }
     list.appendChild(row);
   });
 }
@@ -898,6 +914,32 @@ $("game2PassBtn").addEventListener("click", async () => {
 $("game2RefreshBtn").addEventListener("click", async () => {
   await loadGame2();
   render();
+});
+$("game2StartBtn").addEventListener("click", async () => {
+  try {
+    await callGame2("start");
+    render();
+  } catch (error) {
+    alert(error.message || "게임2 진행 처리에 실패했습니다.");
+  }
+});
+$("game2EndBtn").addEventListener("click", async () => {
+  try {
+    await callGame2("end");
+    render();
+  } catch (error) {
+    alert(error.message || "게임2 종료 처리에 실패했습니다.");
+  }
+});
+$("game2Participants").addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-action='game2-remove']");
+  if (!button) return;
+  try {
+    await callGame2("remove_participant", { target_user_id: button.dataset.userId });
+    render();
+  } catch (error) {
+    alert(error.message || "참여자 제거에 실패했습니다.");
+  }
 });
 document.querySelectorAll("[data-game-tab]").forEach((button) => {
   button.addEventListener("click", async () => {

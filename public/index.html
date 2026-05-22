@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>뚜비의 삶</title>
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=20260522-7" />
   </head>
   <body>
     <main class="app">
@@ -189,6 +189,14 @@
             </section>
 
             <section class="game2-lists">
+              <section class="panel hidden" id="game2AdminPanel">
+                <h2>관리자 진행</h2>
+                <div class="game2-admin-actions">
+                  <button type="button" class="ghost compact" id="game2StartBtn">진행</button>
+                  <button type="button" class="danger compact" id="game2EndBtn">종료</button>
+                </div>
+              </section>
+
               <section class="panel">
                 <div class="panel-title-row">
                   <h2>참여자 목록</h2>
@@ -208,8 +216,8 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase-config.js?v=20260522-6"></script>
-    <script src="backend-data.js?v=20260522-6"></script>
-    <script src="app.js?v=20260522-6"></script>
+    <script src="supabase-config.js?v=20260522-7"></script>
+    <script src="backend-data.js?v=20260522-7"></script>
+    <script src="app.js?v=20260522-7"></script>
   </body>
 </html>

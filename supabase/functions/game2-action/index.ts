@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 
-type Game2Action = "get" | "join" | "pass" | "reset";
+type Game2Action = "get" | "join" | "pass" | "reset" | "start" | "end" | "remove_participant";
 
 type Participant = {
   id: string;
@@ -22,6 +22,7 @@ type Game2State = {
   currentTurn: number | null;
   idleTurns: number;
   lastActionTurn: number | null;
+  forcedStatus: "active" | "ended" | null;
   log: LogEntry[];
 };
 
@@ -64,6 +65,7 @@ function defaultState(dateKey: string): Game2State {
     currentTurn: null,
     idleTurns: 0,
     lastActionTurn: null,
+    forcedStatus: null,
     log: [],
   };
 }
@@ -124,8 +126,25 @@ function normalizeState(raw: unknown, dateKey: string): Game2State {
     currentTurn: Number.isInteger(saved.currentTurn) ? saved.currentTurn as number : null,
     idleTurns: Number.isInteger(saved.idleTurns) ? saved.idleTurns as number : 0,
     lastActionTurn: Number.isInteger(saved.lastActionTurn) ? saved.lastActionTurn as number : null,
+    forcedStatus: saved.forcedStatus === "active" || saved.forcedStatus === "ended" ? saved.forcedStatus : null,
     log: Array.isArray(saved.log) ? saved.log.slice(0, config.logLimit) : [],
   };
+}
+
+function effectivePhase(state: Game2State, phase: { status: string; targetTurn: number | null; joinOpen: boolean }) {
+  if (state.forcedStatus === "ended") {
+    return { status: "ended", targetTurn: phase.targetTurn ?? state.currentTurn, joinOpen: false };
+  }
+
+  if (state.forcedStatus === "active") {
+    return {
+      status: "active",
+      targetTurn: phase.targetTurn ?? state.currentTurn ?? 0,
+      joinOpen: config.testMode ? config.joinOpen : false,
+    };
+  }
+
+  return phase;
 }
 
 function advanceState(state: Game2State, targetTurn: number | null) {
@@ -135,7 +154,7 @@ function advanceState(state: Game2State, targetTurn: number | null) {
     const firstHolder = randomParticipant(state.participants);
     state.holderId = firstHolder?.id || null;
     state.idleTurns = 0;
-    if (firstHolder) addLog(state, `${firstHolder.nickname}님이 첫 박스를 받았습니다.`);
+    if (firstHolder) addLog(state, "첫 박스가 배정되었습니다.");
   }
 
   if (state.currentTurn === null) {
@@ -161,35 +180,47 @@ function advanceState(state: Game2State, targetTurn: number | null) {
 
     state.idleTurns += 1;
     if (state.idleTurns > config.maxCarryTurns) {
-      const beforeName = participantName(state, state.holderId);
       const nextHolder = randomParticipant(state.participants, state.holderId);
       state.holderId = nextHolder?.id || state.holderId;
       state.idleTurns = 0;
-      if (nextHolder) addLog(state, `${beforeName}님이 행동하지 않아 ${nextHolder.nickname}님에게 박스가 자동으로 넘어갔습니다.`);
+      if (nextHolder) addLog(state, "박스가 자동으로 이동했습니다.");
     }
   }
 
   state.currentTurn = targetTurn;
 }
 
-function publicState(state: Game2State, status: string, targetTurn: number | null, joinOpen: boolean) {
+function publicState(
+  state: Game2State,
+  status: string,
+  targetTurn: number | null,
+  joinOpen: boolean,
+  viewerId: string,
+) {
   const currentTurn = status === "active" ? targetTurn : state.currentTurn;
+  const viewerHasBox = state.holderId === viewerId;
+  const revealHolder = status === "ended" || viewerHasBox;
   let message = config.testMode
     ? "테스트 모드입니다. 1분마다 새 타임으로 넘어갑니다."
     : "아침 9시 이전에 참여하면 오늘 게임2에 들어갑니다.";
   if (status === "active") {
-    message = state.holderId
-      ? "박스를 가진 사람만 이번 타임에 원하는 참여자에게 넘길 수 있습니다."
+    message = viewerHasBox
+      ? "내가 박스를 갖고 있습니다. 이번 타임에 원하는 참여자에게 넘길 수 있습니다."
       : "참여자가 있으면 박스가 자동으로 배정됩니다.";
   }
   if (status === "ended") message = "저녁 9시가 지나 오늘 게임2 결과가 정리되었습니다.";
 
   return {
     ...state,
+    holderId: revealHolder ? state.holderId : null,
+    realHolderId: undefined,
     status,
     currentTurn,
     currentTurnLabel: turnLabel(currentTurn),
     joinOpen,
+    viewerHasBox,
+    holderHidden: Boolean(state.holderId && !revealHolder),
+    log: status === "ended" ? state.log : [],
     message,
   };
 }
@@ -209,7 +240,9 @@ serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const action = (body.action || "get") as Game2Action;
-    if (!["get", "join", "pass", "reset"].includes(action)) throw new Error("지원하지 않는 게임2 작업입니다.");
+    if (!["get", "join", "pass", "reset", "start", "end", "remove_participant"].includes(action)) {
+      throw new Error("지원하지 않는 게임2 작업입니다.");
+    }
 
     const supabase = createClient(url, serviceKey);
     const { data: profile, error: profileError } = await supabase
@@ -230,10 +263,24 @@ serve(async (req) => {
 
     let state = normalizeState(row?.data, dateKey);
     const beforeState = JSON.stringify(state);
-    advanceState(state, phase.targetTurn);
+
+    if (action === "start") {
+      if (!profile.is_admin) throw new Error("관리자만 게임을 진행할 수 있습니다.");
+      state.forcedStatus = "active";
+      addLog(state, "관리자가 게임을 진행 상태로 변경했습니다.");
+    }
+
+    if (action === "end") {
+      if (!profile.is_admin) throw new Error("관리자만 게임을 종료할 수 있습니다.");
+      state.forcedStatus = "ended";
+      addLog(state, "관리자가 게임을 종료했습니다.");
+    }
+
+    const activePhase = effectivePhase(state, phase);
+    advanceState(state, activePhase.targetTurn);
 
     if (action === "join") {
-      if (!phase.joinOpen) throw new Error("지금은 게임2 참여가 닫혀 있습니다.");
+      if (!activePhase.joinOpen) throw new Error("지금은 게임2 참여가 닫혀 있습니다.");
       const exists = state.participants.some((participant) => participant.id === profile.id);
       if (!exists) {
         state.participants.push({
@@ -246,18 +293,31 @@ serve(async (req) => {
     }
 
     if (action === "pass") {
-      if (phase.status !== "active") throw new Error("진행 중인 타임에만 박스를 넘길 수 있습니다.");
+      if (activePhase.status !== "active") throw new Error("진행 중인 타임에만 박스를 넘길 수 있습니다.");
       if (state.holderId !== profile.id) throw new Error("박스를 가진 사람만 행동할 수 있습니다.");
-      if (state.lastActionTurn === phase.targetTurn) throw new Error("이번 타임의 행동은 이미 끝났습니다.");
+      if (state.lastActionTurn === activePhase.targetTurn) throw new Error("이번 타임의 행동은 이미 끝났습니다.");
       const target = state.participants.find((participant) => participant.id === body.target_user_id);
       if (!target) throw new Error("넘길 대상을 찾을 수 없습니다.");
       if (target.id === profile.id) throw new Error("자기 자신에게는 넘길 수 없습니다.");
 
-      const beforeName = participantName(state, state.holderId);
       state.holderId = target.id;
       state.idleTurns = 0;
-      state.lastActionTurn = phase.targetTurn;
-      addLog(state, `${beforeName}님이 ${target.nickname}님에게 박스를 넘겼습니다.`);
+      state.lastActionTurn = activePhase.targetTurn;
+      addLog(state, "박스가 다른 참여자에게 넘어갔습니다.");
+    }
+
+    if (action === "remove_participant") {
+      if (!profile.is_admin) throw new Error("관리자만 참여자를 제거할 수 있습니다.");
+      const targetUserId = String(body.target_user_id || "");
+      const target = state.participants.find((participant) => participant.id === targetUserId);
+      if (!target) throw new Error("제거할 참여자를 찾을 수 없습니다.");
+      state.participants = state.participants.filter((participant) => participant.id !== targetUserId);
+      if (state.holderId === targetUserId) {
+        const nextHolder = randomParticipant(state.participants);
+        state.holderId = nextHolder?.id || null;
+        state.idleTurns = 0;
+      }
+      addLog(state, `${target.nickname}님이 참여자 목록에서 제거되었습니다.`);
     }
 
     if (action === "reset") {
@@ -275,7 +335,7 @@ serve(async (req) => {
     }
 
     return Response.json(
-      { ok: true, state: publicState(state, phase.status, phase.targetTurn, phase.joinOpen) },
+      { ok: true, state: publicState(state, activePhase.status, activePhase.targetTurn, activePhase.joinOpen, profile.id) },
       { headers: corsHeaders },
     );
   } catch (error) {

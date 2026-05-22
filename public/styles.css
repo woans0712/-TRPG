@@ -573,6 +573,12 @@ button.danger.compact {
   align-items: center;
 }
 
+.game2-admin-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
 .game2-participant span,
 .game2-log li,
 .game2-empty {
