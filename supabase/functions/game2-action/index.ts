@@ -29,6 +29,7 @@ type Game2State = {
   finalHolderName: string | null;
   resultRecorded: boolean;
   log: LogEntry[];
+  detailLog: LogEntry[];
 };
 
 const config = {
@@ -77,6 +78,7 @@ function defaultState(dateKey: string): Game2State {
     finalHolderName: null,
     resultRecorded: false,
     log: [],
+    detailLog: [],
   };
 }
 
@@ -115,6 +117,18 @@ function addLog(state: Game2State, text: string) {
   state.log = [{ at: new Date().toISOString(), text }, ...(state.log || [])].slice(0, config.logLimit);
 }
 
+function addDetailLog(state: Game2State, text: string) {
+  state.detailLog = [...(state.detailLog || []), { at: new Date().toISOString(), text }].slice(-config.logLimit);
+}
+
+function turnName(turn: number) {
+  return `${turn + 1}턴`;
+}
+
+function turnStartName(turn: number) {
+  return `${turn + 1}턴 시작`;
+}
+
 function randomParticipant(participants: Participant[], excludeId?: string | null) {
   const candidates = participants.filter((participant) => participant.id !== excludeId);
   const pool = candidates.length > 0 ? candidates : participants;
@@ -137,6 +151,8 @@ function finishGame(state: Game2State) {
   const participantNames = state.participants.map((participant) => participant.nickname).join(", ") || "없음";
   addLog(state, `참여자: ${participantNames}`);
   addLog(state, `결과 발표: 우승자 ${winner}`);
+  addDetailLog(state, `결과 발표: 우승자 ${winner}`);
+  addDetailLog(state, `참여자: ${participantNames}`);
   state.participants = [];
   state.resultRecorded = true;
 }
@@ -159,6 +175,7 @@ function normalizeState(raw: unknown, dateKey: string): Game2State {
     finalHolderName: typeof saved.finalHolderName === "string" ? saved.finalHolderName : null,
     resultRecorded: Boolean(saved.resultRecorded),
     log: Array.isArray(saved.log) ? saved.log.slice(0, config.logLimit) : [],
+    detailLog: Array.isArray(saved.detailLog) ? saved.detailLog.slice(-config.logLimit) : [],
   };
 }
 
@@ -178,7 +195,7 @@ function effectivePhase(state: Game2State, phase: { status: string; targetTurn: 
   return phase;
 }
 
-function applyPendingTransfer(state: Game2State) {
+function applyPendingTransfer(state: Game2State, completedTurn: number) {
   if (!state.pendingTransferTargetId) return false;
   const target = state.participants.find((participant) => participant.id === state.pendingTransferTargetId);
   state.pendingTransferTargetId = null;
@@ -187,6 +204,7 @@ function applyPendingTransfer(state: Game2State) {
 
   state.holderId = target.id;
   addLog(state, "박스가 다른 참여자에게 넘어갔습니다.");
+  addDetailLog(state, `${turnStartName(completedTurn + 1)}: 박스가 ${target.nickname}에게 이동`);
   return true;
 }
 
@@ -198,6 +216,7 @@ function advanceState(state: Game2State, targetTurn: number | null) {
     state.holderId = firstHolder?.id || null;
     state.idleTurns = 0;
     if (firstHolder) addLog(state, "첫 박스가 배정되었습니다.");
+    if (firstHolder) addDetailLog(state, `시작: 첫 박스는 ${firstHolder.nickname}`);
   }
 
   if (state.currentTurn === null) {
@@ -213,7 +232,7 @@ function advanceState(state: Game2State, targetTurn: number | null) {
       && state.pendingTransferTurn >= state.currentTurn
       && state.pendingTransferTurn < targetTurn
     ) {
-      applyPendingTransfer(state);
+      applyPendingTransfer(state, state.pendingTransferTurn);
     }
     state.currentTurn = targetTurn;
     state.idleTurns = 0;
@@ -225,18 +244,22 @@ function advanceState(state: Game2State, targetTurn: number | null) {
 
     if (state.lastActionTurn === turn) {
       if (state.pendingTransferTurn === turn) {
-        applyPendingTransfer(state);
+        applyPendingTransfer(state, turn);
       }
       state.idleTurns = 0;
       continue;
     }
 
+    addDetailLog(state, `${turnName(turn)}: ${participantName(state, state.holderId)} 행동 안 함`);
     state.idleTurns += 1;
     if (state.idleTurns > config.maxCarryTurns) {
       const nextHolder = randomParticipant(state.participants, state.holderId);
       state.holderId = nextHolder?.id || state.holderId;
       state.idleTurns = 0;
-      if (nextHolder) addLog(state, "박스가 랜덤한 사람한테 재배치 되었습니다.");
+      if (nextHolder) {
+        addLog(state, "박스가 랜덤한 사람한테 재배치 되었습니다.");
+        addDetailLog(state, `${turnStartName(turn + 1)}: 2번 미행동으로 랜덤 재배치, 박스가 ${nextHolder.nickname}에게 이동`);
+      }
     }
   }
 
@@ -277,7 +300,8 @@ function publicState(
     joinOpen,
     viewerHasBox,
     holderHidden: Boolean(state.holderId && !revealHolder),
-    log: state.log,
+    log: status === "ended" ? state.detailLog : state.log,
+    detailLog: undefined,
     message,
   };
 }
@@ -334,6 +358,7 @@ serve(async (req) => {
       state.finalHolderName = null;
       state.resultRecorded = false;
       state.log = [];
+      state.detailLog = [];
       addLog(state, "관리자가 게임을 진행 상태로 변경했습니다.");
     }
 
@@ -368,16 +393,19 @@ serve(async (req) => {
 
     if (action === "pass") {
       if (activePhase.status !== "active") throw new Error("진행 중인 타임에만 박스를 넘길 수 있습니다.");
+      const actionTurn = activePhase.targetTurn;
+      if (actionTurn === null) throw new Error("현재 타임을 확인할 수 없습니다.");
       if (state.holderId !== profile.id) throw new Error("박스를 가진 사람만 행동할 수 있습니다.");
-      if (state.lastActionTurn === activePhase.targetTurn) throw new Error("이번 타임의 행동은 이미 끝났습니다.");
+      if (state.lastActionTurn === actionTurn) throw new Error("이번 타임의 행동은 이미 끝났습니다.");
       const target = state.participants.find((participant) => participant.id === body.target_user_id);
       if (!target) throw new Error("넘길 대상을 찾을 수 없습니다.");
       if (target.id === profile.id) throw new Error("자기 자신에게는 넘길 수 없습니다.");
 
       state.pendingTransferTargetId = target.id;
-      state.pendingTransferTurn = activePhase.targetTurn;
+      state.pendingTransferTurn = actionTurn;
       state.idleTurns = 0;
-      state.lastActionTurn = activePhase.targetTurn;
+      state.lastActionTurn = actionTurn;
+      addDetailLog(state, `${turnName(actionTurn)}: ${profile.nickname}가 ${target.nickname}에게 넘기기 예약`);
     }
 
     if (action === "remove_participant") {
@@ -399,6 +427,7 @@ serve(async (req) => {
         state.pendingTransferTurn = null;
       }
       addLog(state, `${target.nickname}님이 참여자 목록에서 제거되었습니다.`);
+      addDetailLog(state, `${target.nickname}님이 참여자 목록에서 제거되었습니다.`);
     }
 
     if (action === "reset") {
