@@ -11,6 +11,7 @@ const state = {
   profile: null,
   profiles: [],
   game: null,
+  gameServerSnapshot: null,
   game2: null,
   game2Channel: null,
   game2LastLoadAt: 0,
@@ -100,6 +101,14 @@ function readSavedGame(profile) {
   return defaultGame();
 }
 
+function readServerGame(profile) {
+  const inventory = profile?.inventory;
+  if (inventory && !Array.isArray(inventory) && inventory[SAVE_KEY]) {
+    return normalizeGame(inventory[SAVE_KEY]);
+  }
+  return defaultGame();
+}
+
 function localCacheKey(userId = state.profile?.id) {
   return userId ? `${BACKEND.storage.localPrefix}${userId}` : "";
 }
@@ -138,16 +147,19 @@ function packedInventory(game) {
   const inventory = state.profile?.inventory;
   const current = inventory && !Array.isArray(inventory) ? inventory : {};
   const serverGame = current[SAVE_KEY] && typeof current[SAVE_KEY] === "object" ? current[SAVE_KEY] : null;
-  const serverAttempts = Number(serverGame?.attempts);
-  const localAttempts = Number(game.attempts);
+  const latestServerGame = serverGame ? normalizeGame(serverGame) : defaultGame();
+  const previousServerGame = state.gameServerSnapshot || latestServerGame;
+  const localAttempts = Number(game.attempts) || 0;
+  const previousAttempts = Number(previousServerGame.attempts) || 0;
+  const latestAttempts = Number(latestServerGame.attempts) || 0;
+  const attemptDelta = localAttempts - previousAttempts;
+  const mergedAttempts = Math.max(0, latestAttempts + attemptDelta);
+
   return {
     ...current,
     [SAVE_KEY]: {
       ...game,
-      attempts: Math.max(
-        Number.isFinite(localAttempts) ? localAttempts : 0,
-        Number.isFinite(serverAttempts) ? serverAttempts : 0,
-      ),
+      attempts: mergedAttempts,
     },
   };
 }
@@ -220,6 +232,7 @@ async function saveGame() {
     return;
   }
   state.profile.inventory = inventory;
+  state.gameServerSnapshot = normalizeGame(inventory[SAVE_KEY]);
 }
 
 function queueSave() {
@@ -744,6 +757,7 @@ async function loadProfile() {
     .single();
   if (error) throw error;
   state.profile = data;
+  state.gameServerSnapshot = readServerGame(data);
   state.game = readSavedGame(data);
 }
 
@@ -760,6 +774,7 @@ async function reloadProfileGameFromServer() {
   state.game = inventory && !Array.isArray(inventory) && inventory[SAVE_KEY]
     ? normalizeGame(inventory[SAVE_KEY])
     : defaultGame();
+  state.gameServerSnapshot = normalizeGame(state.game);
   saveLocalGame();
 }
 
@@ -999,6 +1014,7 @@ $("logoutBtn").addEventListener("click", async () => {
   state.session = null;
   state.profile = null;
   state.game = null;
+  state.gameServerSnapshot = null;
   state.game2 = null;
   showGame(false);
 });
