@@ -161,22 +161,31 @@ function secondsUntilAttempt() {
   return Math.max(0, Math.ceil(remain / 1000));
 }
 
-function refillAttempts() {
-  if (!state.game || state.game.attempts >= CONFIG.attempt.max || !state.game.nextAttemptAt) return false;
+function refillGameAttempts(game) {
+  if (!game || game.attempts >= CONFIG.attempt.max || !game.nextAttemptAt) return false;
 
   let changed = false;
-  let next = new Date(state.game.nextAttemptAt).getTime();
+  let next = new Date(game.nextAttemptAt).getTime();
+  if (!Number.isFinite(next)) {
+    game.nextAttemptAt = null;
+    return true;
+  }
+
   const now = Date.now();
   const step = CONFIG.attempt.cooldownSeconds * 1000;
 
-  while (next <= now && state.game.attempts < CONFIG.attempt.max) {
-    state.game.attempts += 1;
+  while (next <= now && game.attempts < CONFIG.attempt.max) {
+    game.attempts += 1;
     next += step;
     changed = true;
   }
 
-  state.game.nextAttemptAt = state.game.attempts >= CONFIG.attempt.max ? null : new Date(next).toISOString();
+  game.nextAttemptAt = game.attempts >= CONFIG.attempt.max ? null : new Date(next).toISOString();
   return changed;
+}
+
+function refillAttempts() {
+  return refillGameAttempts(state.game);
 }
 
 async function saveGame() {
@@ -252,7 +261,7 @@ function render() {
   showGame(loggedIn);
   if (!loggedIn) return;
 
-  refillAttempts();
+  if (refillAttempts()) queueSave();
   const rule = currentRule();
   const chance = successChance();
 
@@ -352,6 +361,7 @@ function renderAdminUsers() {
 
   state.profiles.forEach((profile) => {
     const savedGame = readSavedGameFromProfile(profile);
+    refillGameAttempts(savedGame);
     const row = document.createElement("article");
     row.className = "user-row";
     const info = document.createElement("div");
@@ -374,7 +384,8 @@ function renderAdminUsers() {
     deleteButton.textContent = "삭제";
 
     name.textContent = profile.nickname;
-    meta.textContent = `+${savedGame.bestLevel ?? 0} 최고 / ${savedGame.attempts ?? 0}회 남음`;
+    const currentLevel = savedGame.destroyed ? "파괴됨" : `+${savedGame.level ?? 0}`;
+    meta.textContent = `${currentLevel} 현재 / +${savedGame.bestLevel ?? 0} 최고 / ${savedGame.attempts ?? 0}회 남음`;
     info.append(name, meta);
     actions.append(resetButton, deleteButton);
     row.append(info, actions);
