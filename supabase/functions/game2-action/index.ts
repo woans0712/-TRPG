@@ -2,6 +2,8 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 
+const enhanceSaveKey = "enhanceWorkshop";
+
 type Game2Action = "get" | "join" | "pass" | "reset" | "start" | "end" | "remove_participant";
 
 type Participant = {
@@ -32,6 +34,8 @@ type Game2State = {
   detailLog: LogEntry[];
 };
 
+type SupabaseClient = ReturnType<typeof createClient>;
+
 const config = {
   testMode: true,
   turnMinutes: 1,
@@ -42,6 +46,72 @@ const config = {
   logLimit: 40,
   timezone: "Asia/Seoul",
 };
+
+const rewardTable = [
+  { chance: 25, group: "nonWinners", amount: 10, label: "우승자 제외 참여자 +10" },
+  { chance: 15, group: "nonWinners", amount: 20, label: "우승자 제외 참여자 +20" },
+  { chance: 5, group: "nonWinners", amount: 30, label: "우승자 제외 참여자 +30" },
+  { chance: 30, group: "winner", amount: 30, label: "우승자 +30" },
+  { chance: 20, group: "winner", amount: 50, label: "우승자 +50" },
+  { chance: 5, group: "winner", amount: 100, label: "우승자 +100" },
+];
+
+function defaultEnhanceGame() {
+  return {
+    level: 0,
+    attempts: 10,
+    bestLevel: 0,
+    destroyed: false,
+    history: [],
+    nextAttemptAt: null,
+    cooldownSeconds: 360,
+    version: 1,
+  };
+}
+
+function pickBonusReward() {
+  const roll = Math.random() * 100;
+  let cursor = 0;
+  for (const reward of rewardTable) {
+    cursor += reward.chance;
+    if (roll < cursor) return reward;
+  }
+  return rewardTable[rewardTable.length - 1];
+}
+
+async function addEnhanceAttempts(supabase: SupabaseClient, userIds: string[], amount: number) {
+  const uniqueIds = [...new Set(userIds)].filter(Boolean);
+  if (uniqueIds.length === 0 || amount <= 0) return;
+
+  const { data: profiles, error: fetchError } = await supabase
+    .from("profiles")
+    .select("id,inventory")
+    .in("id", uniqueIds);
+  if (fetchError) throw fetchError;
+
+  for (const profile of profiles || []) {
+    const inventory = profile.inventory && !Array.isArray(profile.inventory) ? profile.inventory : {};
+    const savedGame = inventory[enhanceSaveKey] && typeof inventory[enhanceSaveKey] === "object"
+      ? inventory[enhanceSaveKey]
+      : defaultEnhanceGame();
+    const attempts = Number.isFinite(savedGame.attempts) ? Number(savedGame.attempts) : 0;
+
+    const { error: updateError } = await supabase
+      .from("profiles")
+      .update({
+        inventory: {
+          ...inventory,
+          [enhanceSaveKey]: {
+            ...defaultEnhanceGame(),
+            ...savedGame,
+            attempts: attempts + amount,
+          },
+        },
+      })
+      .eq("id", profile.id);
+    if (updateError) throw updateError;
+  }
+}
 
 function kstParts(now = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -144,15 +214,28 @@ function captureFinalHolder(state: Game2State) {
   state.finalHolderName = state.holderId ? participantName(state, state.holderId) : null;
 }
 
-function finishGame(state: Game2State) {
+async function finishGame(state: Game2State, supabase: SupabaseClient) {
   if (state.resultRecorded) return;
   captureFinalHolder(state);
   const winner = state.finalHolderName || "없음";
   const participantNames = state.participants.map((participant) => participant.nickname).join(", ") || "없음";
+  const participantIds = state.participants.map((participant) => participant.id);
+  const winnerIds = state.finalHolderId ? [state.finalHolderId] : [];
+  const nonWinnerIds = participantIds.filter((id) => id !== state.finalHolderId);
+  const bonus = pickBonusReward();
+  const bonusTargetIds = bonus.group === "winner" ? winnerIds : nonWinnerIds;
+
+  await addEnhanceAttempts(supabase, participantIds, 10);
+  await addEnhanceAttempts(supabase, bonusTargetIds, bonus.amount);
+
   addLog(state, `참여자: ${participantNames}`);
   addLog(state, `결과 발표: 우승자 ${winner}`);
+  addLog(state, `보상: 참여자 전원 강화 횟수 +10`);
+  addLog(state, `추가 보상: ${bonus.label}`);
   addDetailLog(state, `결과 발표: 우승자 ${winner}`);
   addDetailLog(state, `참여자: ${participantNames}`);
+  addDetailLog(state, `보상: 참여자 전원 강화 횟수 +10`);
+  addDetailLog(state, `추가 보상: ${bonus.label}`);
   state.participants = [];
   state.resultRecorded = true;
 }
@@ -375,7 +458,7 @@ serve(async (req) => {
     }
 
     if (activePhase.status === "ended") {
-      finishGame(state);
+      await finishGame(state, supabase);
     }
 
     if (action === "join") {
