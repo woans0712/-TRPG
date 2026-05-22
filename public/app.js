@@ -1,5 +1,6 @@
 const BACKEND = window.ENHANCE_BACKEND_DATA;
 const CONFIG = BACKEND.game;
+const GAME2 = BACKEND.game2;
 const SAVE_KEY = BACKEND.storage.saveKey;
 
 const $ = (id) => document.getElementById(id);
@@ -10,6 +11,9 @@ const state = {
   profile: null,
   profiles: [],
   game: null,
+  game2: null,
+  game2Channel: null,
+  game2LastLoadAt: 0,
   activeGame: "enhance",
   tick: null,
   saveTimer: null,
@@ -248,6 +252,33 @@ async function callFunction(name, body) {
   return data;
 }
 
+async function callGame2(action, body = {}) {
+  const data = await callFunction("game2-action", { action, ...body });
+  state.game2 = data.state;
+  return data.state;
+}
+
+async function loadGame2() {
+  if (!state.session) return;
+  try {
+    await callGame2("get");
+    state.game2LastLoadAt = Date.now();
+  } catch (error) {
+    state.game2 = { error: error.message || "게임2 정보를 불러오지 못했습니다." };
+  }
+}
+
+function subscribeGame2() {
+  if (!state.supabase || state.game2Channel) return;
+  state.game2Channel = state.supabase
+    .channel("game2-state")
+    .on("postgres_changes", { event: "*", schema: "public", table: "game2_state" }, async () => {
+      await loadGame2();
+      render();
+    })
+    .subscribe();
+}
+
 function setAuthError(message) {
   $("authError").textContent = message || "";
 }
@@ -289,6 +320,11 @@ function render() {
   $("profileName").textContent = state.profile.nickname;
   renderGameTabs();
 
+  if (state.activeGame === "title2") {
+    renderGame2();
+    return;
+  }
+
   if (state.activeGame !== "enhance") {
     return;
   }
@@ -329,6 +365,129 @@ function render() {
 
   renderHistory();
   renderAdminUsers();
+}
+
+function participantName(userId) {
+  const participant = state.game2?.participants?.find((item) => item.id === userId);
+  return participant?.nickname || "-";
+}
+
+function isGame2Participant() {
+  return Boolean(state.game2?.participants?.some((item) => item.id === state.profile?.id));
+}
+
+function isGame2Holder() {
+  return state.game2?.holderId === state.profile?.id;
+}
+
+function renderGame2() {
+  const game = state.game2;
+  $("game2Title").textContent = GAME2.title;
+  $("game2TimeText").textContent = `${String(GAME2.startHour).padStart(2, "0")}:00 - ${String(GAME2.endHour).padStart(2, "0")}:00`;
+
+  if (!game || game.error) {
+    $("game2PhaseText").textContent = "대기";
+    $("game2HolderName").textContent = "-";
+    $("game2StatusText").textContent = game?.error || "게임2 정보를 불러오는 중입니다.";
+    $("game2TurnText").textContent = "-";
+    $("game2MyStateText").textContent = "-";
+    $("game2JoinBtn").disabled = true;
+    $("game2PassBtn").disabled = true;
+    renderGame2Participants([]);
+    renderGame2Targets([]);
+    renderGame2Log([]);
+    return;
+  }
+
+  const participants = game.participants || [];
+  const joined = isGame2Participant();
+  const holding = isGame2Holder();
+  const statusLabels = {
+    registration: "참여 접수",
+    active: "진행 중",
+    ended: "결과 정리",
+  };
+  const holderName = game.holderId ? participantName(game.holderId) : "아직 없음";
+
+  $("game2PhaseText").textContent = statusLabels[game.status] || "대기";
+  $("game2HolderName").textContent = holderName;
+  $("game2TurnText").textContent = game.currentTurnLabel || "-";
+  $("game2MyStateText").textContent = holding ? "내가 박스를 보유 중" : joined ? "참여 중" : "미참여";
+  $("game2StatusText").textContent = game.message || "";
+  $("game2JoinBtn").disabled = game.status !== "registration" || joined;
+  $("game2JoinBtn").textContent = joined ? "참여 완료" : "참여하기";
+
+  const passTargets = participants.filter((item) => item.id !== state.profile.id);
+  const alreadyActed = game.lastActionTurn === game.currentTurn;
+  renderGame2Targets(passTargets);
+  $("game2PassBtn").disabled = game.status !== "active" || !holding || alreadyActed || passTargets.length === 0;
+
+  renderGame2Participants(participants);
+  renderGame2Log(game.log || []);
+}
+
+function renderGame2Participants(participants) {
+  const list = $("game2Participants");
+  list.innerHTML = "";
+
+  if (participants.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "game2-empty";
+    empty.textContent = "아직 참여자가 없습니다.";
+    list.appendChild(empty);
+    return;
+  }
+
+  participants.forEach((participant) => {
+    const row = document.createElement("div");
+    row.className = "game2-participant";
+    row.classList.toggle("current", participant.id === state.game2?.holderId);
+
+    const name = document.createElement("strong");
+    const meta = document.createElement("span");
+    name.textContent = participant.nickname;
+    meta.textContent = participant.id === state.game2?.holderId ? `${GAME2.itemName} 보유` : "대기";
+    row.append(name, meta);
+    list.appendChild(row);
+  });
+}
+
+function renderGame2Targets(participants) {
+  const select = $("game2TargetSelect");
+  select.innerHTML = "";
+
+  if (participants.length === 0) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "대상 없음";
+    select.appendChild(option);
+    return;
+  }
+
+  participants.forEach((participant) => {
+    const option = document.createElement("option");
+    option.value = participant.id;
+    option.textContent = participant.nickname;
+    select.appendChild(option);
+  });
+}
+
+function renderGame2Log(log) {
+  const list = $("game2Log");
+  list.innerHTML = "";
+
+  if (log.length === 0) {
+    const empty = document.createElement("li");
+    empty.textContent = "아직 진행 기록이 없습니다.";
+    list.appendChild(empty);
+    return;
+  }
+
+  log.forEach((entry) => {
+    const item = document.createElement("li");
+    item.textContent = entry.text;
+    list.appendChild(item);
+  });
 }
 
 function isAdmin() {
@@ -638,6 +797,8 @@ async function auth(mode) {
     await ensureProfile(nickname);
     await loadProfile();
     await loadProfiles();
+    await loadGame2();
+    subscribeGame2();
     await saveGame();
     render();
   } catch (err) {
@@ -680,11 +841,14 @@ async function init() {
   if (state.session) {
     await loadProfile();
     await loadProfiles();
+    await loadGame2();
+    subscribeGame2();
   }
   render();
 
   state.tick = window.setInterval(async () => {
     if (refillAttempts()) queueSave();
+    if (state.activeGame === "title2" && Date.now() - state.game2LastLoadAt > 30000) await loadGame2();
     render();
   }, 1000);
 }
@@ -711,19 +875,47 @@ $("userList").addEventListener("click", async (event) => {
   if (button.dataset.action === "delete") await deleteUserProfile(userId);
 });
 $("clearLogBtn").addEventListener("click", clearHistory);
+$("game2JoinBtn").addEventListener("click", async () => {
+  try {
+    await callGame2("join");
+    render();
+  } catch (error) {
+    alert(error.message || "게임2 참여에 실패했습니다.");
+  }
+});
+$("game2PassBtn").addEventListener("click", async () => {
+  const targetUserId = $("game2TargetSelect").value;
+  if (!targetUserId) return;
+  try {
+    await callGame2("pass", { target_user_id: targetUserId });
+    render();
+  } catch (error) {
+    alert(error.message || "박스 넘기기에 실패했습니다.");
+  }
+});
+$("game2RefreshBtn").addEventListener("click", async () => {
+  await loadGame2();
+  render();
+});
 document.querySelectorAll("[data-game-tab]").forEach((button) => {
-  button.addEventListener("click", () => {
+  button.addEventListener("click", async () => {
     if (button.dataset.gameTab === "title2" && !canAccessTitle2()) return;
     state.activeGame = button.dataset.gameTab;
+    if (state.activeGame === "title2") await loadGame2();
     render();
   });
 });
 $("logoutBtn").addEventListener("click", async () => {
   await flushSave();
+  if (state.game2Channel) {
+    await state.supabase.removeChannel(state.game2Channel);
+    state.game2Channel = null;
+  }
   await state.supabase.auth.signOut();
   state.session = null;
   state.profile = null;
   state.game = null;
+  state.game2 = null;
   showGame(false);
 });
 

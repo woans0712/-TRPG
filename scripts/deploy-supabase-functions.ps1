@@ -24,4 +24,7 @@ Write-Host "Deploying clear-messages function"
 Write-Host "Deploying admin-manage-user function"
 & $Supabase functions deploy admin-manage-user
 
+Write-Host "Deploying game2-action function"
+& $Supabase functions deploy game2-action
+
 Write-Host "Done. Supabase Edge Functions are deployed."

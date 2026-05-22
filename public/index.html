@@ -141,18 +141,75 @@
         </div>
 
         <section class="title2-view hidden" id="title2GameView">
-          <section class="panel title2-card">
-            <p class="eyebrow">title 2</p>
-            <h2>타이틀2</h2>
-            <p>서버 로그인과 유저 정보는 그대로 유지됩니다. 여기에 두 번째 게임 화면을 붙이면 됩니다.</p>
+          <section class="game2-board">
+            <div class="game2-hero">
+              <div>
+                <p class="eyebrow">game 2</p>
+                <h2 id="game2Title">박스 릴레이</h2>
+              </div>
+              <div class="game2-clock">
+                <span id="game2PhaseText">-</span>
+                <strong id="game2TimeText">09:00 - 21:00</strong>
+              </div>
+            </div>
+
+            <section class="game2-layout">
+              <article class="box-stage">
+                <p class="item-type">현재 보유자</p>
+                <div class="box-icon" aria-hidden="true">BOX</div>
+                <h3 id="game2HolderName">-</h3>
+                <p id="game2StatusText">게임 상태를 불러오는 중입니다.</p>
+                <button type="button" class="enhance-button" id="game2JoinBtn">참여하기</button>
+              </article>
+
+              <aside class="side">
+                <section class="panel">
+                  <h2>이번 타임</h2>
+                  <dl class="detail-list">
+                    <div>
+                      <dt>현재 타임</dt>
+                      <dd id="game2TurnText">-</dd>
+                    </div>
+                    <div>
+                      <dt>내 상태</dt>
+                      <dd id="game2MyStateText">-</dd>
+                    </div>
+                  </dl>
+                </section>
+
+                <section class="panel">
+                  <h2>넘기기</h2>
+                  <label>
+                    대상 선택
+                    <select id="game2TargetSelect"></select>
+                  </label>
+                  <button type="button" id="game2PassBtn">박스 넘기기</button>
+                </section>
+              </aside>
+            </section>
+
+            <section class="game2-lists">
+              <section class="panel">
+                <div class="panel-title-row">
+                  <h2>참여자 목록</h2>
+                  <button type="button" class="ghost compact" id="game2RefreshBtn">새로고침</button>
+                </div>
+                <div class="game2-participants" id="game2Participants"></div>
+              </section>
+
+              <section class="panel">
+                <h2>진행 기록</h2>
+                <ol class="game2-log" id="game2Log"></ol>
+              </section>
+            </section>
           </section>
         </section>
       </section>
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase-config.js?v=20260522-5"></script>
-    <script src="backend-data.js?v=20260522-5"></script>
-    <script src="app.js?v=20260522-5"></script>
+    <script src="supabase-config.js?v=20260522-6"></script>
+    <script src="backend-data.js?v=20260522-6"></script>
+    <script src="app.js?v=20260522-6"></script>
   </body>
 </html>

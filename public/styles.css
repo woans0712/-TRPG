@@ -73,6 +73,17 @@ input {
   outline: none;
 }
 
+select {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #0d0f0d;
+  color: var(--text);
+  padding: 0 12px;
+  outline: none;
+}
+
 input:focus {
   border-color: var(--accent);
 }
@@ -434,23 +445,150 @@ button.danger.compact {
   line-height: 1.6;
 }
 
-.title2-card {
-  min-height: 420px;
+.game2-board {
+  display: grid;
+  gap: 18px;
+}
+
+.game2-hero {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background:
+    linear-gradient(120deg, rgba(225, 184, 91, 0.18), transparent 44%),
+    color-mix(in srgb, var(--surface) 92%, black);
+  padding: 20px;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+}
+
+.game2-hero h2 {
+  margin: 6px 0 0;
+  font-size: clamp(34px, 5vw, 58px);
+}
+
+.game2-clock {
+  min-width: 190px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #111410;
+  padding: 14px;
+  text-align: right;
+}
+
+.game2-clock span,
+.game2-clock strong {
+  display: block;
+}
+
+.game2-clock span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.game2-clock strong {
+  margin-top: 6px;
+  color: var(--accent);
+  font-size: 22px;
+}
+
+.game2-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 18px;
+}
+
+.box-stage {
+  min-height: 460px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background:
+    linear-gradient(150deg, rgba(255, 255, 255, 0.06), transparent 40%),
+    #111410;
+  padding: 24px;
   display: grid;
   align-content: center;
-  justify-items: start;
+  justify-items: center;
+  gap: 16px;
+  text-align: center;
 }
 
-.title2-card h2 {
-  margin: 8px 0 12px;
-  font-size: clamp(42px, 7vw, 76px);
+.box-icon {
+  width: min(220px, 64vw);
+  aspect-ratio: 1.2;
+  border: 2px solid color-mix(in srgb, var(--accent) 70%, white);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.18), transparent 42%),
+    color-mix(in srgb, var(--accent) 78%, #5b3713);
+  color: #2a1b08;
+  display: grid;
+  place-items: center;
+  font-size: clamp(36px, 8vw, 72px);
+  font-weight: 900;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
 }
 
-.title2-card p:last-child {
-  max-width: 560px;
+.box-stage h3 {
+  margin: 0;
+  font-size: clamp(30px, 5vw, 56px);
+}
+
+.box-stage p {
+  max-width: 520px;
   margin: 0;
   color: var(--muted);
-  line-height: 1.7;
+  line-height: 1.6;
+}
+
+.game2-lists {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 18px;
+}
+
+.game2-participants,
+.game2-log {
+  max-height: 320px;
+  overflow-y: auto;
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+}
+
+.game2-participant,
+.game2-log li {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #111410;
+  padding: 12px;
+}
+
+.game2-participant {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.game2-participant span,
+.game2-log li,
+.game2-empty {
+  color: var(--muted);
+}
+
+.game2-participant strong {
+  color: var(--text);
+}
+
+.game2-participant.current {
+  border-color: color-mix(in srgb, var(--accent) 70%, var(--line));
+}
+
+.game2-log {
+  list-style: none;
 }
 
 .log-panel {
@@ -513,14 +651,22 @@ button.danger.compact {
 @media (max-width: 880px) {
   .auth-view,
   .admin-dashboard,
-  .layout {
+  .layout,
+  .game2-layout,
+  .game2-lists {
     grid-template-columns: 1fr;
   }
 
   .topbar,
+  .game2-hero,
   .profile-box {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .game2-clock {
+    width: 100%;
+    text-align: left;
   }
 
   .forge {

@@ -143,4 +143,15 @@ window.ENHANCE_BACKEND_DATA = {
       ],
     },
   },
+
+  game2: {
+    title: "박스 릴레이",
+    itemName: "박스",
+    timezone: "Asia/Seoul",
+    joinStartHour: 0,
+    startHour: 9,
+    endHour: 21,
+    maxCarryTurns: 1,
+    logLimit: 40,
+  },
 };
