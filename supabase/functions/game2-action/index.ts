@@ -298,6 +298,12 @@ function applyPendingTransfer(state: Game2State, completedTurn: number) {
   return true;
 }
 
+function flushCurrentPendingTransfer(state: Game2State) {
+  if (state.pendingTransferTurn === null) return;
+  if (state.currentTurn !== null && state.pendingTransferTurn > state.currentTurn) return;
+  applyPendingTransfer(state, state.pendingTransferTurn);
+}
+
 function advanceState(state: Game2State, targetTurn: number | null) {
   if (targetTurn === null || state.participants.length === 0) return;
 
@@ -464,6 +470,10 @@ serve(async (req) => {
 
     const activePhase = effectivePhase(state, phase);
     advanceState(state, activePhase.targetTurn);
+
+    if (activePhase.status === "ended") {
+      flushCurrentPendingTransfer(state);
+    }
 
     if (activePhase.status === "ended" && !state.finalHolderId && state.holderId) {
       captureFinalHolder(state);
