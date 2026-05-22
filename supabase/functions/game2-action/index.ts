@@ -246,7 +246,7 @@ function publicState(
     joinOpen,
     viewerHasBox,
     holderHidden: Boolean(state.holderId && !revealHolder),
-    log: status === "ended" ? state.log : [],
+    log: state.log,
     message,
   };
 }
@@ -300,6 +300,7 @@ serve(async (req) => {
       state.finalHolderId = null;
       state.finalHolderName = null;
       state.resultRecorded = false;
+      state.log = [];
       addLog(state, "관리자가 게임을 진행 상태로 변경했습니다.");
     }
 
