@@ -410,8 +410,8 @@ function renderGame2() {
     active: "진행 중",
     ended: "결과 정리",
   };
-  const holderName = game.status === "ended" && game.holderId
-    ? participantName(game.holderId)
+  const holderName = game.status === "ended" && (game.finalHolderName || game.holderId)
+    ? game.finalHolderName || participantName(game.holderId)
     : holding
       ? "내가 보유 중"
       : game.holderHidden

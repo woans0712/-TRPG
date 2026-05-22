@@ -23,6 +23,8 @@ type Game2State = {
   idleTurns: number;
   lastActionTurn: number | null;
   forcedStatus: "active" | "ended" | null;
+  finalHolderId: string | null;
+  finalHolderName: string | null;
   log: LogEntry[];
 };
 
@@ -66,6 +68,8 @@ function defaultState(dateKey: string): Game2State {
     idleTurns: 0,
     lastActionTurn: null,
     forcedStatus: null,
+    finalHolderId: null,
+    finalHolderName: null,
     log: [],
   };
 }
@@ -115,6 +119,11 @@ function participantName(state: Game2State, userId: string | null) {
   return state.participants.find((participant) => participant.id === userId)?.nickname || "알 수 없음";
 }
 
+function captureFinalHolder(state: Game2State) {
+  state.finalHolderId = state.holderId;
+  state.finalHolderName = state.holderId ? participantName(state, state.holderId) : null;
+}
+
 function normalizeState(raw: unknown, dateKey: string): Game2State {
   const saved = raw && typeof raw === "object" ? raw as Partial<Game2State> : {};
   if (saved.dateKey !== dateKey) return defaultState(dateKey);
@@ -127,6 +136,8 @@ function normalizeState(raw: unknown, dateKey: string): Game2State {
     idleTurns: Number.isInteger(saved.idleTurns) ? saved.idleTurns as number : 0,
     lastActionTurn: Number.isInteger(saved.lastActionTurn) ? saved.lastActionTurn as number : null,
     forcedStatus: saved.forcedStatus === "active" || saved.forcedStatus === "ended" ? saved.forcedStatus : null,
+    finalHolderId: typeof saved.finalHolderId === "string" ? saved.finalHolderId : null,
+    finalHolderName: typeof saved.finalHolderName === "string" ? saved.finalHolderName : null,
     log: Array.isArray(saved.log) ? saved.log.slice(0, config.logLimit) : [],
   };
 }
@@ -183,7 +194,7 @@ function advanceState(state: Game2State, targetTurn: number | null) {
       const nextHolder = randomParticipant(state.participants, state.holderId);
       state.holderId = nextHolder?.id || state.holderId;
       state.idleTurns = 0;
-      if (nextHolder) addLog(state, "박스가 자동으로 이동했습니다.");
+      if (nextHolder) addLog(state, "박스가 랜덤한 사람한테 재배치 되었습니다.");
     }
   }
 
@@ -200,6 +211,7 @@ function publicState(
   const currentTurn = status === "active" ? targetTurn : state.currentTurn;
   const viewerHasBox = state.holderId === viewerId;
   const revealHolder = status === "ended" || viewerHasBox;
+  const visibleHolderId = status === "ended" ? state.finalHolderId || state.holderId : state.holderId;
   let message = config.testMode
     ? "테스트 모드입니다. 1분마다 새 타임으로 넘어갑니다."
     : "아침 9시 이전에 참여하면 오늘 게임2에 들어갑니다.";
@@ -212,7 +224,7 @@ function publicState(
 
   return {
     ...state,
-    holderId: revealHolder ? state.holderId : null,
+    holderId: revealHolder ? visibleHolderId : null,
     realHolderId: undefined,
     status,
     currentTurn,
@@ -267,17 +279,25 @@ serve(async (req) => {
     if (action === "start") {
       if (!profile.is_admin) throw new Error("관리자만 게임을 진행할 수 있습니다.");
       state.forcedStatus = "active";
+      state.finalHolderId = null;
+      state.finalHolderName = null;
       addLog(state, "관리자가 게임을 진행 상태로 변경했습니다.");
     }
 
     if (action === "end") {
       if (!profile.is_admin) throw new Error("관리자만 게임을 종료할 수 있습니다.");
+      captureFinalHolder(state);
       state.forcedStatus = "ended";
+      state.participants = state.participants.filter((participant) => participant.id !== profile.id);
       addLog(state, "관리자가 게임을 종료했습니다.");
     }
 
     const activePhase = effectivePhase(state, phase);
     advanceState(state, activePhase.targetTurn);
+
+    if (activePhase.status === "ended" && !state.finalHolderId && state.holderId) {
+      captureFinalHolder(state);
+    }
 
     if (action === "join") {
       if (!activePhase.joinOpen) throw new Error("지금은 게임2 참여가 닫혀 있습니다.");
