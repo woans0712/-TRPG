@@ -60,7 +60,7 @@ function normalizeGame(saved) {
   const game = {
     ...base,
     ...(saved || {}),
-    attempts: Math.min(saved?.attempts ?? base.attempts, CONFIG.attempt.max),
+    attempts: Math.max(0, Number(saved?.attempts ?? base.attempts) || 0),
     destroyed: Boolean(saved?.destroyed ?? base.destroyed),
     history: pruneHistory(Array.isArray(saved?.history) ? saved.history : []),
   };
@@ -137,9 +137,18 @@ function saveLocalGame() {
 function packedInventory(game) {
   const inventory = state.profile?.inventory;
   const current = inventory && !Array.isArray(inventory) ? inventory : {};
+  const serverGame = current[SAVE_KEY] && typeof current[SAVE_KEY] === "object" ? current[SAVE_KEY] : null;
+  const serverAttempts = Number(serverGame?.attempts);
+  const localAttempts = Number(game.attempts);
   return {
     ...current,
-    [SAVE_KEY]: game,
+    [SAVE_KEY]: {
+      ...game,
+      attempts: Math.max(
+        Number.isFinite(localAttempts) ? localAttempts : 0,
+        Number.isFinite(serverAttempts) ? serverAttempts : 0,
+      ),
+    },
   };
 }
 
@@ -196,6 +205,14 @@ function refillAttempts() {
 async function saveGame() {
   if (!state.session || !state.profile || !state.game) return;
   saveLocalGame();
+
+  const { data: latestProfile } = await state.supabase
+    .from("profiles")
+    .select("inventory")
+    .eq("id", state.profile.id)
+    .single();
+  if (latestProfile?.inventory) state.profile.inventory = latestProfile.inventory;
+
   const inventory = packedInventory(state.game);
   const { error } = await state.supabase.from("profiles").update({ inventory }).eq("id", state.profile.id);
   if (error) {
@@ -730,6 +747,22 @@ async function loadProfile() {
   state.game = readSavedGame(data);
 }
 
+async function reloadProfileGameFromServer() {
+  const { data, error } = await state.supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", state.session.user.id)
+    .single();
+  if (error) throw error;
+
+  state.profile = data;
+  const inventory = data?.inventory;
+  state.game = inventory && !Array.isArray(inventory) && inventory[SAVE_KEY]
+    ? normalizeGame(inventory[SAVE_KEY])
+    : defaultGame();
+  saveLocalGame();
+}
+
 async function loadProfiles() {
   if (!isAdmin()) {
     state.profiles = [];
@@ -932,6 +965,7 @@ $("game2StartBtn").addEventListener("click", async () => {
 $("game2EndBtn").addEventListener("click", async () => {
   try {
     await callGame2("end");
+    await reloadProfileGameFromServer();
     render();
   } catch (error) {
     alert(error.message || "게임2 종료 처리에 실패했습니다.");

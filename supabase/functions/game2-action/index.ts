@@ -20,6 +20,7 @@ type LogEntry = {
 type Game2State = {
   dateKey: string;
   participants: Participant[];
+  turnBase: number | null;
   holderId: string | null;
   currentTurn: number | null;
   idleTurns: number;
@@ -137,6 +138,7 @@ function defaultState(dateKey: string): Game2State {
   return {
     dateKey,
     participants: [],
+    turnBase: null,
     holderId: null,
     currentTurn: null,
     idleTurns: 0,
@@ -247,6 +249,7 @@ function normalizeState(raw: unknown, dateKey: string): Game2State {
   return {
     dateKey,
     participants: Array.isArray(saved.participants) ? saved.participants : [],
+    turnBase: Number.isInteger(saved.turnBase) ? saved.turnBase as number : null,
     holderId: saved.holderId || null,
     currentTurn: Number.isInteger(saved.currentTurn) ? saved.currentTurn as number : null,
     idleTurns: Number.isInteger(saved.idleTurns) ? saved.idleTurns as number : 0,
@@ -263,19 +266,23 @@ function normalizeState(raw: unknown, dateKey: string): Game2State {
 }
 
 function effectivePhase(state: Game2State, phase: { status: string; targetTurn: number | null; joinOpen: boolean }) {
+  const testTargetTurn = config.testMode && phase.targetTurn !== null
+    ? Math.max(0, phase.targetTurn - (state.turnBase ?? phase.targetTurn))
+    : phase.targetTurn;
+
   if (state.forcedStatus === "ended") {
-    return { status: "ended", targetTurn: phase.targetTurn ?? state.currentTurn, joinOpen: false };
+    return { status: "ended", targetTurn: testTargetTurn ?? state.currentTurn, joinOpen: false };
   }
 
   if (state.forcedStatus === "active") {
     return {
       status: "active",
-      targetTurn: phase.targetTurn ?? state.currentTurn ?? 0,
+      targetTurn: testTargetTurn ?? state.currentTurn ?? 0,
       joinOpen: config.testMode ? config.joinOpen : false,
     };
   }
 
-  return phase;
+  return { ...phase, targetTurn: testTargetTurn };
 }
 
 function applyPendingTransfer(state: Game2State, completedTurn: number) {
@@ -431,6 +438,7 @@ serve(async (req) => {
     if (action === "start") {
       if (!profile.is_admin) throw new Error("관리자만 게임을 진행할 수 있습니다.");
       state.forcedStatus = "active";
+      state.turnBase = phase.targetTurn;
       state.holderId = null;
       state.currentTurn = null;
       state.idleTurns = 0;
@@ -443,6 +451,10 @@ serve(async (req) => {
       state.log = [];
       state.detailLog = [];
       addLog(state, "관리자가 게임을 진행 상태로 변경했습니다.");
+    }
+
+    if (config.testMode && state.turnBase === null && phase.targetTurn !== null) {
+      state.turnBase = phase.targetTurn;
     }
 
     if (action === "end") {
