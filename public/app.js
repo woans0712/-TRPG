@@ -289,7 +289,7 @@ function showGame(loggedIn) {
 }
 
 function canAccessTitle2() {
-  return isAdmin() || state.profile?.nickname === "미미";
+  return GAME2.testMode || isAdmin() || state.profile?.nickname === "미미";
 }
 
 function renderGameTabs() {
