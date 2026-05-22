@@ -10,6 +10,7 @@ const state = {
   profile: null,
   profiles: [],
   game: null,
+  activeGame: "enhance",
   tick: null,
   saveTimer: null,
   saveInFlight: false,
@@ -256,16 +257,33 @@ function showGame(loggedIn) {
   $("gameView").classList.toggle("hidden", !loggedIn);
 }
 
+function renderGameTabs() {
+  document.querySelectorAll("[data-game-tab]").forEach((button) => {
+    const active = button.dataset.gameTab === state.activeGame;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+
+  $("enhanceGameView").classList.toggle("hidden", state.activeGame !== "enhance");
+  $("title2GameView").classList.toggle("hidden", state.activeGame !== "title2");
+}
+
 function render() {
   const loggedIn = Boolean(state.session && state.profile && state.game);
   showGame(loggedIn);
   if (!loggedIn) return;
 
+  $("profileName").textContent = state.profile.nickname;
+  renderGameTabs();
+
+  if (state.activeGame !== "enhance") {
+    return;
+  }
+
   if (refillAttempts()) queueSave();
   const rule = currentRule();
   const chance = successChance();
 
-  $("profileName").textContent = state.profile.nickname;
   $("itemType").textContent = CONFIG.item.type;
   $("itemName").textContent = currentItemName();
   $("itemFlavor").textContent = CONFIG.item.flavor;
@@ -680,6 +698,12 @@ $("userList").addEventListener("click", async (event) => {
   if (button.dataset.action === "delete") await deleteUserProfile(userId);
 });
 $("clearLogBtn").addEventListener("click", clearHistory);
+document.querySelectorAll("[data-game-tab]").forEach((button) => {
+  button.addEventListener("click", () => {
+    state.activeGame = button.dataset.gameTab;
+    render();
+  });
+});
 $("logoutBtn").addEventListener("click", async () => {
   await flushSave();
   await state.supabase.auth.signOut();

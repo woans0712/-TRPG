@@ -44,100 +44,115 @@
           </div>
         </header>
 
-        <section class="admin-dashboard hidden" id="adminDashboard">
-          <section class="panel">
-            <h2>초기화 관리</h2>
-            <p>관리자는 내 진행 상태를 전체 초기화할 수 있습니다.</p>
-            <button type="button" class="danger" id="adminResetBtn">내 진행 전체 초기화</button>
-          </section>
+        <nav class="game-tabs" aria-label="게임 선택">
+          <button type="button" class="game-tab active" data-game-tab="enhance">게임1</button>
+          <button type="button" class="game-tab" data-game-tab="title2">타이틀2</button>
+        </nav>
 
-          <section class="panel">
-            <div class="panel-title-row">
-              <h2>가입 유저 목록</h2>
-              <button type="button" class="ghost compact" id="refreshUsersBtn">새로고침</button>
-            </div>
-            <div class="user-list" id="userList"></div>
-          </section>
-        </section>
-
-        <section class="layout">
-          <article class="forge">
-            <div class="item-frame" id="itemFrame">
-              <p class="item-type" id="itemType">장비</p>
-              <h2 id="itemName">낡은 심심검</h2>
-              <div class="level" id="levelText">+0</div>
-              <p class="flavor" id="itemFlavor">강화할수록 묘하게 눈치가 보이는 검.</p>
-            </div>
-
-            <div class="chance-row">
-              <div>
-                <span>성공 확률</span>
-                <strong id="successRate">0%</strong>
-              </div>
-              <div>
-                <span>최고 기록</span>
-                <strong id="bestLevel">+0</strong>
-              </div>
-              <div>
-                <span>부서질 확률</span>
-                <strong id="breakRateText">0%</strong>
-              </div>
-            </div>
-
-            <button type="button" class="enhance-button" id="enhanceBtn">강화하기</button>
-            <p class="cooldown" id="cooldownText"></p>
-          </article>
-
-          <aside class="side">
+        <div class="game-panel" id="enhanceGameView">
+          <section class="admin-dashboard hidden" id="adminDashboard">
             <section class="panel">
-              <h2>진행</h2>
-              <div class="resource-grid">
-                <div>
-                  <span>기회</span>
-                  <strong id="attemptsText">0 / 10</strong>
-                </div>
-                <div>
-                  <span>장비 상태</span>
-                  <strong id="itemStateText">정상</strong>
-                </div>
-              </div>
+              <h2>초기화 관리</h2>
+              <p>관리자는 내 진행 상태를 전체 초기화할 수 있습니다.</p>
+              <button type="button" class="danger" id="adminResetBtn">내 진행 전체 초기화</button>
             </section>
 
             <section class="panel">
-              <h2>현재 단계</h2>
-              <dl class="detail-list">
+              <div class="panel-title-row">
+                <h2>가입 유저 목록</h2>
+                <button type="button" class="ghost compact" id="refreshUsersBtn">새로고침</button>
+              </div>
+              <div class="user-list" id="userList"></div>
+            </section>
+          </section>
+
+          <section class="layout">
+            <article class="forge">
+              <div class="item-frame" id="itemFrame">
+                <p class="item-type" id="itemType">장비</p>
+                <h2 id="itemName">낡은 심심검</h2>
+                <div class="level" id="levelText">+0</div>
+                <p class="flavor" id="itemFlavor">강화할수록 묘하게 눈치가 보이는 검.</p>
+              </div>
+
+              <div class="chance-row">
                 <div>
-                  <dt>최대 강화</dt>
-                  <dd id="maxLevelText">-</dd>
+                  <span>성공 확률</span>
+                  <strong id="successRate">0%</strong>
                 </div>
                 <div>
-                  <dt>기회 회복</dt>
-                  <dd id="cooldownRuleText">-</dd>
+                  <span>최고 기록</span>
+                  <strong id="bestLevel">+0</strong>
                 </div>
-              </dl>
-            </section>
+                <div>
+                  <span>부서질 확률</span>
+                  <strong id="breakRateText">0%</strong>
+                </div>
+              </div>
 
-            <section class="panel danger-zone">
-              <h2>장비 복구</h2>
-              <p>장비가 파괴되면 복구할 수 있습니다. 기회는 회복되지 않고, 장비는 +1부터 다시 시작합니다.</p>
-              <button type="button" class="danger hidden" id="restoreItemBtn">장비 복구</button>
-            </section>
-          </aside>
-        </section>
+              <button type="button" class="enhance-button" id="enhanceBtn">강화하기</button>
+              <p class="cooldown" id="cooldownText"></p>
+            </article>
 
-        <section class="log-panel">
-          <div class="log-head">
-            <h2>강화 기록</h2>
-            <button type="button" class="ghost" id="clearLogBtn">기록 비우기</button>
-          </div>
-          <ol id="historyList"></ol>
+            <aside class="side">
+              <section class="panel">
+                <h2>진행</h2>
+                <div class="resource-grid">
+                  <div>
+                    <span>기회</span>
+                    <strong id="attemptsText">0 / 10</strong>
+                  </div>
+                  <div>
+                    <span>장비 상태</span>
+                    <strong id="itemStateText">정상</strong>
+                  </div>
+                </div>
+              </section>
+
+              <section class="panel">
+                <h2>현재 단계</h2>
+                <dl class="detail-list">
+                  <div>
+                    <dt>최대 강화</dt>
+                    <dd id="maxLevelText">-</dd>
+                  </div>
+                  <div>
+                    <dt>기회 회복</dt>
+                    <dd id="cooldownRuleText">-</dd>
+                  </div>
+                </dl>
+              </section>
+
+              <section class="panel danger-zone">
+                <h2>장비 복구</h2>
+                <p>장비가 파괴되면 복구할 수 있습니다. 기회는 회복되지 않고, 장비는 +1부터 다시 시작합니다.</p>
+                <button type="button" class="danger hidden" id="restoreItemBtn">장비 복구</button>
+              </section>
+            </aside>
+          </section>
+
+          <section class="log-panel">
+            <div class="log-head">
+              <h2>강화 기록</h2>
+              <button type="button" class="ghost" id="clearLogBtn">기록 비우기</button>
+            </div>
+            <ol id="historyList"></ol>
+          </section>
+        </div>
+
+        <section class="title2-view hidden" id="title2GameView">
+          <section class="panel title2-card">
+            <p class="eyebrow">title 2</p>
+            <h2>타이틀2</h2>
+            <p>서버 로그인과 유저 정보는 그대로 유지됩니다. 여기에 두 번째 게임 화면을 붙이면 됩니다.</p>
+          </section>
         </section>
       </section>
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase-config.js?v=20260522-3"></script>
-    <script src="backend-data.js?v=20260522-3"></script>
-    <script src="app.js?v=20260522-3"></script>
+    <script src="supabase-config.js?v=20260522-4"></script>
+    <script src="backend-data.js?v=20260522-4"></script>
+    <script src="app.js?v=20260522-4"></script>
   </body>
 </html>
