@@ -14,8 +14,8 @@ import java.nio.charset.StandardCharsets;
 final class BotClient {
     private BotClient() {}
 
-    static String send(Context context, BotEvent event) throws Exception {
-        JSONObject json = basePayload(context, "ingest");
+    static String send(Context context, String roomKey, BotEvent event) throws Exception {
+        JSONObject json = basePayload(roomKey, "ingest");
         json.put("event_type", event.eventType);
         json.put("source", "android_notification");
 
@@ -27,14 +27,18 @@ final class BotClient {
         return post(context, json);
     }
 
-    static JSONObject lookup(Context context, String nickname) throws Exception {
-        JSONObject json = basePayload(context, "lookup");
+    static String send(Context context, BotEvent event) throws Exception {
+        return send(context, SettingsStore.roomKey(context), event);
+    }
+
+    static JSONObject lookup(Context context, String roomKey, String nickname) throws Exception {
+        JSONObject json = basePayload(roomKey, "lookup");
         json.put("nickname", nickname);
         return new JSONObject(post(context, json));
     }
 
-    static JSONObject note(Context context, String nickname, String severity, String note) throws Exception {
-        JSONObject json = basePayload(context, "note");
+    static JSONObject note(Context context, String roomKey, String nickname, String severity, String note) throws Exception {
+        JSONObject json = basePayload(roomKey, "note");
         json.put("nickname", nickname);
         json.put("severity", severity);
         json.put("note", note);
@@ -42,17 +46,17 @@ final class BotClient {
         return new JSONObject(post(context, json));
     }
 
-    static JSONObject command(Context context, String nickname, String commandText) throws Exception {
-        JSONObject json = basePayload(context, "command");
+    static JSONObject command(Context context, String roomKey, String nickname, String commandText) throws Exception {
+        JSONObject json = basePayload(roomKey, "command");
         json.put("nickname", nickname);
         json.put("message_text", commandText);
         return new JSONObject(post(context, json));
     }
 
-    private static JSONObject basePayload(Context context, String action) throws Exception {
+    private static JSONObject basePayload(String roomKey, String action) throws Exception {
         JSONObject json = new JSONObject();
         json.put("action", action);
-        json.put("room_key", SettingsStore.roomKey(context));
+        json.put("room_key", roomKey);
         return json;
     }
 

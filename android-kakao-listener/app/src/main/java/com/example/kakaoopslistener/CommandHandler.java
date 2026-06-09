@@ -13,8 +13,8 @@ final class CommandHandler {
         return text.startsWith("/") || text.startsWith("!");
     }
 
-    static String handle(Context context, BotEvent event) throws Exception {
-        JSONObject response = BotClient.command(context, event.nickname, event.messageText);
+    static String handle(Context context, String roomKey, BotEvent event) throws Exception {
+        JSONObject response = BotClient.command(context, roomKey, event.nickname, event.messageText);
         if (!response.optBoolean("ok")) return "명령 처리 실패: " + response.optString("error");
 
         JSONObject data = response.optJSONObject("data");

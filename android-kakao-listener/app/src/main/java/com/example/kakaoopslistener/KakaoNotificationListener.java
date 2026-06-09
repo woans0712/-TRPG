@@ -29,11 +29,12 @@ public class KakaoNotificationListener extends NotificationListenerService {
         String title = asString(extras.getCharSequence(Notification.EXTRA_TITLE));
         String text = asString(extras.getCharSequence(Notification.EXTRA_TEXT));
         String bigText = asString(extras.getCharSequence(Notification.EXTRA_BIG_TEXT));
+        String roomKey = NotificationMetadata.roomKey(getApplicationContext(), extras);
 
         BotEvent event = EventParser.parse(title, text, bigText);
         if (event == null) return;
 
-        String dedupeKey = sbn.getPostTime() + "|" + event.eventType + "|" + event.nickname + "|"
+        String dedupeKey = sbn.getPostTime() + "|" + roomKey + "|" + event.eventType + "|" + event.nickname + "|"
             + event.oldNickname + "|" + event.newNickname + "|" + event.messageText;
         synchronized (recentKeys) {
             if (recentKeys.contains(dedupeKey)) return;
@@ -43,10 +44,12 @@ public class KakaoNotificationListener extends NotificationListenerService {
 
         executor.execute(() -> {
             try {
-                String response = BotClient.send(getApplicationContext(), event);
+                LocalEventStore.save(getApplicationContext(), roomKey, event, dedupeKey, "android_notification");
+                String response = BotClient.send(getApplicationContext(), roomKey, event);
+                LocalEventStore.markSent(getApplicationContext(), dedupeKey);
                 Log.i(TAG, "Sent " + event.eventType + ": " + response);
                 if (CommandHandler.isCommand(event)) {
-                    String reply = CommandHandler.handle(getApplicationContext(), event);
+                    String reply = CommandHandler.handle(getApplicationContext(), roomKey, event);
                     if (reply != null && !reply.trim().isEmpty()) {
                         boolean replied = NotificationReply.send(getApplicationContext(), notification, reply);
                         Log.i(TAG, "Command reply " + (replied ? "sent" : "unavailable"));

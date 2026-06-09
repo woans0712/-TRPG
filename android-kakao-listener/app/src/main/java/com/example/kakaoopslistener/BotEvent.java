@@ -30,4 +30,10 @@ final class BotEvent {
     static BotEvent message(String nickname, String messageText) {
         return new BotEvent("message", nickname, "", "", messageText);
     }
+
+    String displayName() {
+        if (!nickname.isEmpty()) return nickname;
+        if (!newNickname.isEmpty()) return newNickname;
+        return oldNickname;
+    }
 }

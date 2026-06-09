@@ -142,6 +142,23 @@ After installing:
 6. Tap notification access settings and allow `Kakao Ops Listener`.
 7. Send a test event from the app.
 
+## Local Phone Database
+
+The Android app now stores notification events in its own SQLite database before trying to sync to Supabase.
+This database belongs to the listener app, not KakaoTalk.
+
+Stored locally:
+
+- room key
+- event type
+- nickname
+- old/new nickname when available
+- message text
+- local created time
+- whether the event was sent to Supabase
+
+The app screen has `Show local DB summary` to check local room/event/unsent counts.
+
 ## Chat Commands
 
 Commands are managed in `supabase/functions/kakao-ops/commands.ts`.
