@@ -42,6 +42,13 @@ final class BotClient {
         return new JSONObject(post(context, json));
     }
 
+    static JSONObject command(Context context, String nickname, String commandText) throws Exception {
+        JSONObject json = basePayload(context, "command");
+        json.put("nickname", nickname);
+        json.put("message_text", commandText);
+        return new JSONObject(post(context, json));
+    }
+
     private static JSONObject basePayload(Context context, String action) throws Exception {
         JSONObject json = new JSONObject();
         json.put("action", action);

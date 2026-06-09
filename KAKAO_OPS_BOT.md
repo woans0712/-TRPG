@@ -144,7 +144,10 @@ After installing:
 
 ## Chat Commands
 
-The Android app can answer commands when KakaoTalk exposes a notification quick-reply action.
+Commands are managed in `supabase/functions/kakao-ops/commands.ts`.
+Edit that file when you want to add, remove, rename, or reword commands.
+
+The Android app sends command text to the backend, then answers when KakaoTalk exposes a notification quick-reply action.
 This depends on the phone, KakaoTalk notification style, and chat notification settings.
 
 Supported commands:

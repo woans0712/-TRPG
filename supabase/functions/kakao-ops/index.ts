@@ -1,9 +1,10 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
+import { handleCommand } from "./commands.ts";
 
 type EventType = "join" | "leave" | "rename" | "message";
-type Action = "ingest" | "lookup" | "note" | "merge";
+type Action = "ingest" | "lookup" | "note" | "merge" | "command";
 type SupabaseClient = ReturnType<typeof createClient>;
 
 type Person = {
@@ -389,13 +390,17 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const action = String(body.action || "lookup") as Action;
 
-    if (!["ingest", "lookup", "note", "merge"].includes(action)) throw new Error("Unsupported action.");
+    if (!["ingest", "lookup", "note", "merge", "command"].includes(action)) throw new Error("Unsupported action.");
 
     const data =
       action === "ingest" ? await ingest(supabase, body)
         : action === "lookup" ? await lookup(supabase, body)
           : action === "note" ? await note(supabase, body)
-            : await mergePeople(supabase, body);
+            : action === "command" ? await handleCommand(body, {
+              lookup: (payload) => lookup(supabase, payload),
+              note: (payload) => note(supabase, payload),
+            })
+              : await mergePeople(supabase, body);
 
     return Response.json({ ok: true, data }, { headers: corsHeaders });
   } catch (error) {
