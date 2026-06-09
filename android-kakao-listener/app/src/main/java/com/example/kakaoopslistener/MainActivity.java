@@ -2,6 +2,7 @@ package com.example.kakaoopslistener;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.view.Gravity;
@@ -13,10 +14,16 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
+    private static final int PICK_CHAT_EXPORT = 42;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private EditText endpointInput;
     private EditText tokenInput;
@@ -75,6 +82,11 @@ public class MainActivity extends Activity {
         localSummary.setOnClickListener(view -> statusText.setText(LocalEventStore.summary(this)));
         root.addView(localSummary, matchWrap());
 
+        Button importExport = new Button(this);
+        importExport.setText("Import Kakao chat export");
+        importExport.setOnClickListener(view -> pickChatExport());
+        root.addView(importExport, matchWrap());
+
         statusText = new TextView(this);
         statusText.setText("Save settings, allow notification access, then keep Kakao notifications enabled.");
         statusText.setPadding(0, 24, 0, 0);
@@ -125,5 +137,96 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> statusText.setText("Test failed\n" + error.getMessage()));
             }
         });
+    }
+
+    private void pickChatExport() {
+        saveSettings();
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("text/*");
+        startActivityForResult(intent, PICK_CHAT_EXPORT);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != PICK_CHAT_EXPORT || resultCode != RESULT_OK || data == null || data.getData() == null) {
+            return;
+        }
+        importChatExport(data.getData());
+    }
+
+    private void importChatExport(Uri uri) {
+        saveSettings();
+        String roomKey = SettingsStore.roomKey(this);
+        statusText.setText("Importing chat export...");
+        executor.execute(() -> {
+            try {
+                String text = readText(uri);
+                List<ImportedMessage> messages = ChatExportParser.parse(text);
+                int saved = 0;
+                int sent = 0;
+                int skipped = 0;
+                int failed = 0;
+
+                for (ImportedMessage message : messages) {
+                    if (message.nickname.isEmpty() || message.messageText.isEmpty()) {
+                        skipped += 1;
+                        continue;
+                    }
+                    BotEvent event = BotEvent.message(message.nickname, message.messageText, message.occurredAt);
+                    String dedupeKey = "chat_export|" + roomKey + "|" + message.occurredAt + "|" + sha256(message.nickname + "\n" + message.messageText);
+                    long rowId = LocalEventStore.save(this, roomKey, event, dedupeKey, "chat_export");
+                    if (rowId == -1) {
+                        skipped += 1;
+                        continue;
+                    }
+                    saved += 1;
+                    try {
+                        BotClient.send(this, roomKey, event, "chat_export", dedupeKey);
+                        LocalEventStore.markSent(this, dedupeKey);
+                        sent += 1;
+                    } catch (Exception error) {
+                        failed += 1;
+                    }
+                }
+
+                int finalSaved = saved;
+                int finalSent = sent;
+                int finalSkipped = skipped;
+                int finalFailed = failed;
+                int parsed = messages.size();
+                runOnUiThread(() -> statusText.setText(
+                    "Import done\nparsed=" + parsed
+                        + ", saved=" + finalSaved
+                        + ", sent=" + finalSent
+                        + ", skipped=" + finalSkipped
+                        + ", failed=" + finalFailed
+                ));
+            } catch (Exception error) {
+                runOnUiThread(() -> statusText.setText("Import failed\n" + error.getMessage()));
+            }
+        });
+    }
+
+    private String readText(Uri uri) throws Exception {
+        try (InputStream input = getContentResolver().openInputStream(uri)) {
+            if (input == null) throw new IllegalStateException("Could not open selected file.");
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = input.read(buffer)) != -1) {
+                output.write(buffer, 0, read);
+            }
+            return output.toString(StandardCharsets.UTF_8.name());
+        }
+    }
+
+    private static String sha256(String value) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        byte[] hash = digest.digest(value.getBytes(StandardCharsets.UTF_8));
+        StringBuilder result = new StringBuilder();
+        for (byte b : hash) result.append(String.format("%02x", b));
+        return result.toString();
     }
 }

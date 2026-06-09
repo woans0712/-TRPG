@@ -1,173 +1,35 @@
 # Kakao Ops Bot
 
-This backend stores only public chat-room events that the phone app can see in notifications.
-It does not read KakaoTalk internal databases, hidden identifiers, account IDs, or device data.
+This bot stores KakaoTalk OpenChat events that the Android listener app can legally see:
+notifications, bot command messages, and chat export text files selected by the phone owner.
 
-## Deploy
+It does not read KakaoTalk internal DB files, hidden account IDs, app caches, or protected device data.
 
-```powershell
-.\scripts\apply-supabase-db.ps1
-.\scripts\set-kakao-bot-token.ps1
-.\scripts\deploy-supabase-functions.ps1
-```
+## Current Features
 
-## Endpoint
+- KakaoTalk notification listener
+- Local phone SQLite event queue
+- Supabase sync
+- Command replies through Kakao notification quick reply when available
+- Kakao chat export `.txt` import from the Android app
+- Nickname link detection by same room + same minute + same message text
+- Duplicate prevention for repeated chat export imports
 
-```text
-POST https://<project-ref>.supabase.co/functions/v1/kakao-ops
-Header: x-bot-token: <KAKAO_BOT_INGEST_TOKEN>
-Header: content-type: application/json
-```
+## Android App Flow
 
-## Ingest Events
+1. Open `Kakao Ops Listener`.
+2. Save endpoint, token, and room key.
+3. Allow notification access.
+4. Tap `Import Kakao chat export`.
+5. Select a KakaoTalk exported `.txt` file.
+6. The app stores parsed messages locally and sends them to Supabase.
 
-Join:
+For nickname tracking, export the same room after the nickname changed and import that file again.
+If old messages now appear with the new nickname, the backend links the old and new nicknames.
 
-```json
-{
-  "action": "ingest",
-  "room_key": "main-openchat",
-  "event_type": "join",
-  "nickname": "배부른 춘식이",
-  "occurred_at": "2026-06-09T10:00:00+09:00"
-}
-```
+## Commands
 
-Leave:
-
-```json
-{
-  "action": "ingest",
-  "room_key": "main-openchat",
-  "event_type": "leave",
-  "nickname": "배부른 춘식이"
-}
-```
-
-Rename:
-
-```json
-{
-  "action": "ingest",
-  "room_key": "main-openchat",
-  "event_type": "rename",
-  "old_nickname": "배부른 춘식이",
-  "new_nickname": "긁적이는 춘식이"
-}
-```
-
-Message:
-
-```json
-{
-  "action": "ingest",
-  "room_key": "main-openchat",
-  "event_type": "message",
-  "nickname": "긁적이는 춘식이",
-  "message_text": "안녕하세요"
-}
-```
-
-When a join is ingested, the response includes `suspicion_candidates` for recent leavers with similar nicknames.
-Treat those as review hints, not confirmed identity.
-
-## Lookup
-
-```json
-{
-  "action": "lookup",
-  "room_key": "main-openchat",
-  "nickname": "춘식이"
-}
-```
-
-The response contains:
-
-- aliases
-- join and leave counts
-- nickname changes
-- recent events
-- admin notes
-
-## Admin Notes
-
-```json
-{
-  "action": "note",
-  "room_key": "main-openchat",
-  "nickname": "긁적이는 춘식이",
-  "severity": "watch",
-  "note": "관리자 확인 필요",
-  "created_by": "admin"
-}
-```
-
-## Manual Merge
-
-Use this only after an admin confirms two records should be treated as the same public-history record.
-
-```json
-{
-  "action": "merge",
-  "source_person_id": "<old-person-id>",
-  "target_person_id": "<kept-person-id>"
-}
-```
-
-## Android Listener Shape
-
-This repo includes a starter Android project in `android-kakao-listener/`.
-The phone app uses `NotificationListenerService`, parses KakaoTalk notification text, and sends only the visible text-derived event.
-
-Suggested parser mapping:
-
-- `(.+)님이 들어왔습니다` -> `join`
-- `(.+)님이 나갔습니다` -> `leave`
-- `(.+)님이 (.+)님으로 변경되었습니다` -> `rename`
-- message notification title/body -> `message`
-
-Keep a local queue and retry failed requests so the bot does not lose events when the network is unstable.
-
-## Build The Android App
-
-Open `android-kakao-listener/` in Android Studio, then build/install the `app` module.
-
-After installing:
-
-1. Open the app.
-2. Set `x-bot-token` to the same token saved by `scripts/set-kakao-bot-token.ps1`.
-3. Keep the default endpoint unless the Supabase project changes.
-4. Set `room_key` to a stable room name such as `main-openchat`.
-5. Tap save.
-6. Tap notification access settings and allow `Kakao Ops Listener`.
-7. Send a test event from the app.
-
-## Local Phone Database
-
-The Android app now stores notification events in its own SQLite database before trying to sync to Supabase.
-This database belongs to the listener app, not KakaoTalk.
-
-Stored locally:
-
-- room key
-- event type
-- nickname
-- old/new nickname when available
-- message text
-- local created time
-- whether the event was sent to Supabase
-
-The app screen has `Show local DB summary` to check local room/event/unsent counts.
-
-## Chat Commands
-
-Commands are managed in `supabase/functions/kakao-ops/commands.ts`.
-Edit that file when you want to add, remove, rename, or reword commands.
-
-The Android app sends command text to the backend, then answers when KakaoTalk exposes a notification quick-reply action.
-This depends on the phone, KakaoTalk notification style, and chat notification settings.
-
-Supported commands:
+Commands are edited in `supabase/functions/kakao-ops/commands.ts`.
 
 ```text
 /도움
@@ -176,4 +38,40 @@ Supported commands:
 /닉변 닉네임
 ```
 
-Command replies are generated from the same public notification history stored by `kakao-ops`.
+## Nickname Tracking Rule
+
+The bot links nicknames only when it sees the same message again under another nickname:
+
+```text
+2026-06-10 03:34 / 뚜비 / 야호
+2026-06-10 03:34 / 이지 / 야호
+```
+
+This creates a link:
+
+```text
+뚜비 -> 이지
+reason: same_message_fingerprint
+```
+
+The comparison window is based on stored history, and lookup output shows detected nickname links.
+
+## Deploy
+
+```powershell
+.\scripts\apply-supabase-db.ps1
+.\scripts\deploy-supabase-functions.ps1
+```
+
+## Build Android
+
+```powershell
+cd android-kakao-listener
+..\tools\gradle\gradle-8.7\bin\gradle.bat assembleDebug
+```
+
+APK:
+
+```text
+android-kakao-listener\app\build\outputs\apk\debug\app-debug.apk
+```

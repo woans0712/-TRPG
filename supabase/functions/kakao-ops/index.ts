@@ -217,10 +217,23 @@ async function ingest(supabase: SupabaseClient, body: Record<string, unknown>) {
   const nickname = normalizeNickname(body.nickname);
   const oldNickname = normalizeNickname(body.old_nickname);
   const newNickname = normalizeNickname(body.new_nickname);
+  const dedupeKey = normalizeNickname(body.dedupe_key);
   const effectiveNickname = eventType === "rename" ? newNickname : nickname;
   if (!effectiveNickname && eventType !== "rename") throw new Error("nickname is required.");
   if (eventType === "rename" && (!oldNickname || !newNickname)) {
     throw new Error("old_nickname and new_nickname are required for rename events.");
+  }
+
+  if (dedupeKey) {
+    const { data: existingEvent, error: dedupeError } = await supabase
+      .from("kakao_events")
+      .select("id,person_id")
+      .eq("dedupe_key", dedupeKey)
+      .maybeSingle();
+    if (dedupeError) throw dedupeError;
+    if (existingEvent?.id) {
+      return { event_id: existingEvent.id, duplicate: true };
+    }
   }
 
   let person = eventType === "rename"
@@ -247,6 +260,7 @@ async function ingest(supabase: SupabaseClient, body: Record<string, unknown>) {
       suspicion_candidates: candidates,
       source: normalizeNickname(body.source || "notification"),
       occurred_at: at,
+      dedupe_key: dedupeKey || null,
     })
     .select("id")
     .single();

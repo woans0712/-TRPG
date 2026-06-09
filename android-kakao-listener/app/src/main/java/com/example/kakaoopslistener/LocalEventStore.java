@@ -9,7 +9,7 @@ final class LocalEventStore {
     private LocalEventStore() {}
 
     static long save(Context context, String roomKey, BotEvent event, String dedupeKey, String source) {
-        long now = System.currentTimeMillis();
+        long now = eventTimeMillis(event);
         LocalDatabase helper = new LocalDatabase(context);
         SQLiteDatabase db = helper.getWritableDatabase();
         db.beginTransaction();
@@ -107,6 +107,17 @@ final class LocalEventStore {
         String sql = "SELECT COUNT(*) FROM " + table + (where == null ? "" : " WHERE " + where);
         try (Cursor cursor = db.rawQuery(sql, null)) {
             return cursor.moveToFirst() ? cursor.getLong(0) : 0;
+        }
+    }
+
+    private static long eventTimeMillis(BotEvent event) {
+        if (event.occurredAt == null || event.occurredAt.trim().isEmpty()) {
+            return System.currentTimeMillis();
+        }
+        try {
+            return java.time.Instant.parse(event.occurredAt).toEpochMilli();
+        } catch (Exception ignored) {
+            return System.currentTimeMillis();
         }
     }
 }

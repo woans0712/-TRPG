@@ -15,14 +15,20 @@ final class BotClient {
     private BotClient() {}
 
     static String send(Context context, String roomKey, BotEvent event) throws Exception {
+        return send(context, roomKey, event, "android_notification", "");
+    }
+
+    static String send(Context context, String roomKey, BotEvent event, String source, String dedupeKey) throws Exception {
         JSONObject json = basePayload(roomKey, "ingest");
         json.put("event_type", event.eventType);
-        json.put("source", "android_notification");
+        json.put("source", source);
 
         if (!event.nickname.isEmpty()) json.put("nickname", event.nickname);
         if (!event.oldNickname.isEmpty()) json.put("old_nickname", event.oldNickname);
         if (!event.newNickname.isEmpty()) json.put("new_nickname", event.newNickname);
         if (!event.messageText.isEmpty()) json.put("message_text", event.messageText);
+        if (!event.occurredAt.isEmpty()) json.put("occurred_at", event.occurredAt);
+        if (!dedupeKey.isEmpty()) json.put("dedupe_key", dedupeKey);
 
         return post(context, json);
     }
