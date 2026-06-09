@@ -320,7 +320,7 @@ async function nicknameTimeline(supabase: SupabaseClient, roomId: string, nickna
   if (anchorError) throw anchorError;
 
   const anchorTime = anchor?.occurred_at ? new Date(anchor.occurred_at) : new Date();
-  const since = new Date(anchorTime.getTime() - 6 * 60 * 60 * 1000).toISOString();
+  const since = new Date(anchorTime.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const until = new Date(anchorTime.getTime() + 5 * 60 * 1000).toISOString();
 
   const { data: rows, error } = await supabase
@@ -345,7 +345,7 @@ async function nicknameTimeline(supabase: SupabaseClient, roomId: string, nickna
 
   return {
     anchor_nickname: nickname,
-    window_minutes_before: 360,
+    window_minutes_before: 43200,
     window_minutes_after: 5,
     names,
     message_count: messageCounts.get(nickname) || 0,
