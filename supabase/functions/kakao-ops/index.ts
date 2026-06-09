@@ -294,13 +294,62 @@ async function lookup(supabase: SupabaseClient, body: Record<string, unknown>) {
     .order("created_at", { ascending: false });
   if (notesError) throw notesError;
 
+  const timeline = await nicknameTimeline(supabase, room.id, nickname);
+
   return {
     people: (people || []).map((person) => ({
       ...person,
       aliases: (aliases || []).filter((alias) => alias.person_id === person.id),
       events: (events || []).filter((event) => event.person_id === person.id),
       notes: (notes || []).filter((note) => note.person_id === person.id),
+      timeline,
     })),
+  };
+}
+
+async function nicknameTimeline(supabase: SupabaseClient, roomId: string, nickname: string) {
+  const { data: anchor, error: anchorError } = await supabase
+    .from("kakao_events")
+    .select("occurred_at")
+    .eq("room_id", roomId)
+    .eq("event_type", "message")
+    .eq("nickname", nickname)
+    .order("occurred_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (anchorError) throw anchorError;
+
+  const anchorTime = anchor?.occurred_at ? new Date(anchor.occurred_at) : new Date();
+  const since = new Date(anchorTime.getTime() - 30 * 60 * 1000).toISOString();
+  const until = new Date(anchorTime.getTime() + 5 * 60 * 1000).toISOString();
+
+  const { data: rows, error } = await supabase
+    .from("kakao_events")
+    .select("nickname,message_text,occurred_at")
+    .eq("room_id", roomId)
+    .eq("event_type", "message")
+    .gte("occurred_at", since)
+    .lte("occurred_at", until)
+    .order("occurred_at", { ascending: true })
+    .limit(80);
+  if (error) throw error;
+
+  const names: string[] = [];
+  const messageCounts = new Map<string, number>();
+  for (const row of rows || []) {
+    const name = normalizeNickname(row.nickname);
+    if (!name) continue;
+    messageCounts.set(name, (messageCounts.get(name) || 0) + 1);
+    if (names[names.length - 1] !== name) names.push(name);
+  }
+
+  return {
+    anchor_nickname: nickname,
+    window_minutes_before: 30,
+    window_minutes_after: 5,
+    names,
+    message_count: messageCounts.get(nickname) || 0,
+    counts: Object.fromEntries(messageCounts.entries()),
   };
 }
 

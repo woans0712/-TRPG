@@ -83,6 +83,18 @@ function formatLookup(query: string, raw: unknown) {
   const names = [...new Set(aliases.map((alias) => text(alias.nickname)).filter(Boolean))].slice(0, 6);
   if (names.length > 0) out.push(`닉네임: ${names.join(", ")}`);
 
+  const timeline = person.timeline && typeof person.timeline === "object"
+    ? person.timeline as Record<string, unknown>
+    : {};
+  const timelineNames = Array.isArray(timeline.names)
+    ? (timeline.names as unknown[]).map(text).filter(Boolean)
+    : [];
+  const messageCount = number(timeline.message_count);
+  out.push(`메시지 ${messageCount}`);
+  if (timelineNames.length > 1) {
+    out.push(`최근 닉네임 흐름: ${timelineNames.slice(-8).join(" -> ")}`);
+  }
+
   const events = Array.isArray(person.events) ? person.events as Array<Record<string, unknown>> : [];
   const renameEvents = events.filter((event) => text(event.event_type) === "rename").slice(0, 3);
   if (renameEvents.length > 0) {
