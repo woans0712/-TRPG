@@ -79,24 +79,24 @@ function formatLookup(query: string, raw: unknown) {
   out.push(`최초닉: ${text(person.first_nickname)}`);
   out.push(`입장 ${number(person.join_count)} / 퇴장 ${number(person.leave_count)}`);
 
-  const timeline = person.timeline && typeof person.timeline === "object"
-    ? person.timeline as Record<string, unknown>
-    : {};
-  const timelineNames = Array.isArray(timeline.names)
-    ? (timeline.names as unknown[]).map(text).filter(Boolean)
-    : [];
   const aliases = Array.isArray(person.aliases) ? person.aliases as Array<Record<string, unknown>> : [];
   const aliasNames = aliases.map((alias) => text(alias.nickname)).filter(Boolean);
-  const names = [...new Set([...timelineNames, ...aliasNames])].slice(-8);
+  const links = Array.isArray(person.nickname_links) ? person.nickname_links as Array<Record<string, unknown>> : [];
+  const linkedNames = links.flatMap((link) => [text(link.old_nickname), text(link.new_nickname)]).filter(Boolean);
+  const names = [...new Set([...linkedNames, ...aliasNames])].slice(-8);
   if (names.length > 0) out.push(`닉네임: ${names.join(", ")}`);
 
-  const messageCount = number(timeline.message_count);
+  const events = Array.isArray(person.events) ? person.events as Array<Record<string, unknown>> : [];
+  const messageCount = events.filter((event) => text(event.event_type) === "message").length;
   out.push(`메시지 ${messageCount}`);
-  if (timelineNames.length > 1) {
-    out.push(`추정 닉변: ${timelineNames.slice(-8).join(" -> ")}`);
+  if (links.length > 0) {
+    out.push("추정 닉변:");
+    for (const link of links.slice(-5)) {
+      out.push(`- ${text(link.old_nickname)} -> ${text(link.new_nickname)}`);
+      out.push(`  근거: ${text(link.message_text)}`);
+    }
   }
 
-  const events = Array.isArray(person.events) ? person.events as Array<Record<string, unknown>> : [];
   const renameEvents = events.filter((event) => text(event.event_type) === "rename").slice(0, 3);
   if (renameEvents.length > 0) {
     out.push("닉변:");

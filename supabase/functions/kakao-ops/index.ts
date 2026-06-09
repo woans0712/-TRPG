@@ -252,7 +252,95 @@ async function ingest(supabase: SupabaseClient, body: Record<string, unknown>) {
     .single();
   if (error) throw error;
 
+  if (eventType === "message" && body.message_text) {
+    await recordMessageFingerprint(
+      supabase,
+      room.id,
+      effectiveNickname,
+      String(body.message_text).slice(0, 2000),
+      at,
+    );
+  }
+
   return { event_id: event.id, person: updated, suspicion_candidates: candidates };
+}
+
+function messageFingerprint(messageText: string, at: string) {
+  const date = new Date(at);
+  const minute = Number.isNaN(date.getTime())
+    ? at.slice(0, 16)
+    : date.toISOString().slice(0, 16);
+  const message = messageText.trim().replace(/\s+/g, " ");
+  return `${minute}|${message}`;
+}
+
+async function recordMessageFingerprint(
+  supabase: SupabaseClient,
+  roomId: string,
+  nickname: string,
+  messageText: string,
+  at: string,
+) {
+  const cleanNickname = normalizeNickname(nickname);
+  const cleanMessage = messageText.trim().replace(/\s+/g, " ");
+  if (!cleanNickname || !cleanMessage) return;
+
+  const fingerprint = messageFingerprint(cleanMessage, at);
+  const { data: existingRows, error: fetchError } = await supabase
+    .from("kakao_message_fingerprints")
+    .select("nickname,message_text,occurred_at")
+    .eq("room_id", roomId)
+    .eq("fingerprint", fingerprint);
+  if (fetchError) throw fetchError;
+
+  const differentNicknames = [...new Set(
+    (existingRows || [])
+      .map((row) => normalizeNickname(row.nickname))
+      .filter((name) => name && name !== cleanNickname),
+  )];
+
+  const { data: existingOwn, error: ownError } = await supabase
+    .from("kakao_message_fingerprints")
+    .select("id")
+    .eq("room_id", roomId)
+    .eq("fingerprint", fingerprint)
+    .eq("nickname", cleanNickname)
+    .maybeSingle();
+  if (ownError) throw ownError;
+
+  if (existingOwn?.id) {
+    const { error: updateError } = await supabase
+      .from("kakao_message_fingerprints")
+      .update({ last_seen_at: new Date().toISOString() })
+      .eq("id", existingOwn.id);
+    if (updateError) throw updateError;
+  } else {
+    const { error: insertError } = await supabase
+      .from("kakao_message_fingerprints")
+      .insert({
+        room_id: roomId,
+        fingerprint,
+        nickname: cleanNickname,
+        message_text: cleanMessage,
+        occurred_at: at,
+      });
+    if (insertError) throw insertError;
+  }
+
+  for (const oldNickname of differentNicknames) {
+    const { error: linkError } = await supabase
+      .from("kakao_nickname_links")
+      .upsert({
+        room_id: roomId,
+        old_nickname: oldNickname,
+        new_nickname: cleanNickname,
+        fingerprint,
+        message_text: cleanMessage,
+        occurred_at: at,
+        reason: "same_message_fingerprint",
+      }, { onConflict: "room_id,old_nickname,new_nickname,fingerprint" });
+    if (linkError) throw linkError;
+  }
 }
 
 async function lookup(supabase: SupabaseClient, body: Record<string, unknown>) {
@@ -294,7 +382,7 @@ async function lookup(supabase: SupabaseClient, body: Record<string, unknown>) {
     .order("created_at", { ascending: false });
   if (notesError) throw notesError;
 
-  const timeline = await nicknameTimeline(supabase, room.id, nickname);
+  const links = await nicknameLinks(supabase, room.id, nickname);
 
   return {
     people: (people || []).map((person) => ({
@@ -302,55 +390,40 @@ async function lookup(supabase: SupabaseClient, body: Record<string, unknown>) {
       aliases: (aliases || []).filter((alias) => alias.person_id === person.id),
       events: (events || []).filter((event) => event.person_id === person.id),
       notes: (notes || []).filter((note) => note.person_id === person.id),
-      timeline,
+      nickname_links: links,
     })),
   };
 }
 
-async function nicknameTimeline(supabase: SupabaseClient, roomId: string, nickname: string) {
-  const { data: anchor, error: anchorError } = await supabase
-    .from("kakao_events")
-    .select("occurred_at")
+async function nicknameLinks(supabase: SupabaseClient, roomId: string, nickname: string) {
+  const { data: oldLinks, error: oldError } = await supabase
+    .from("kakao_nickname_links")
+    .select("old_nickname,new_nickname,message_text,occurred_at,reason,created_at")
     .eq("room_id", roomId)
-    .eq("event_type", "message")
-    .eq("nickname", nickname)
-    .order("occurred_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (anchorError) throw anchorError;
+    .eq("old_nickname", nickname)
+    .order("created_at", { ascending: true })
+    .limit(30);
+  if (oldError) throw oldError;
 
-  const anchorTime = anchor?.occurred_at ? new Date(anchor.occurred_at) : new Date();
-  const since = new Date(anchorTime.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
-  const until = new Date(anchorTime.getTime() + 5 * 60 * 1000).toISOString();
-
-  const { data: rows, error } = await supabase
-    .from("kakao_events")
-    .select("nickname,message_text,occurred_at")
+  const { data: newLinks, error: newError } = await supabase
+    .from("kakao_nickname_links")
+    .select("old_nickname,new_nickname,message_text,occurred_at,reason,created_at")
     .eq("room_id", roomId)
-    .eq("event_type", "message")
-    .gte("occurred_at", since)
-    .lte("occurred_at", until)
-    .order("occurred_at", { ascending: true })
-    .limit(80);
-  if (error) throw error;
+    .eq("new_nickname", nickname)
+    .order("created_at", { ascending: true })
+    .limit(30);
+  if (newError) throw newError;
 
-  const names: string[] = [];
-  const messageCounts = new Map<string, number>();
-  for (const row of rows || []) {
-    const name = normalizeNickname(row.nickname);
-    if (!name) continue;
-    messageCounts.set(name, (messageCounts.get(name) || 0) + 1);
-    if (names[names.length - 1] !== name) names.push(name);
-  }
-
-  return {
-    anchor_nickname: nickname,
-    window_minutes_before: 43200,
-    window_minutes_after: 5,
-    names,
-    message_count: messageCounts.get(nickname) || 0,
-    counts: Object.fromEntries(messageCounts.entries()),
-  };
+  const seen = new Set<string>();
+  return [...(oldLinks || []), ...(newLinks || [])]
+    .filter((link) => {
+      const key = `${link.old_nickname}|${link.new_nickname}|${link.message_text}|${link.occurred_at}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((left, right) => String(left.created_at).localeCompare(String(right.created_at)))
+    .slice(-30);
 }
 
 async function note(supabase: SupabaseClient, body: Record<string, unknown>) {
