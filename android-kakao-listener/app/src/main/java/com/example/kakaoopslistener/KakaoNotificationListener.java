@@ -45,6 +45,13 @@ public class KakaoNotificationListener extends NotificationListenerService {
             try {
                 String response = BotClient.send(getApplicationContext(), event);
                 Log.i(TAG, "Sent " + event.eventType + ": " + response);
+                if (CommandHandler.isCommand(event)) {
+                    String reply = CommandHandler.handle(getApplicationContext(), event);
+                    if (reply != null && !reply.trim().isEmpty()) {
+                        boolean replied = NotificationReply.send(getApplicationContext(), notification, reply);
+                        Log.i(TAG, "Command reply " + (replied ? "sent" : "unavailable"));
+                    }
+                }
             } catch (Exception error) {
                 Log.e(TAG, "Failed to send event", error);
             }

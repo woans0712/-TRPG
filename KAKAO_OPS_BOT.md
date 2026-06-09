@@ -141,3 +141,22 @@ After installing:
 5. Tap save.
 6. Tap notification access settings and allow `Kakao Ops Listener`.
 7. Send a test event from the app.
+
+## Chat Commands
+
+The Android app can answer commands when KakaoTalk exposes a notification quick-reply action.
+This depends on the phone, KakaoTalk notification style, and chat notification settings.
+
+Supported commands:
+
+```text
+/도움
+/조회 닉네임
+/기록 닉네임
+/닉변 닉네임
+/주의 닉네임 내용
+/메모 닉네임 내용
+/차단 닉네임 내용
+```
+
+Command replies are generated from the same public notification history stored by `kakao-ops`.
