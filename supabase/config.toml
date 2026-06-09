@@ -8,3 +8,6 @@ verify_jwt = true
 
 [functions.clear-messages]
 verify_jwt = true
+
+[functions.kakao-ops]
+verify_jwt = false

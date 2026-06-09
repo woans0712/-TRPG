@@ -1,0 +1,128 @@
+# Kakao Ops Bot
+
+This backend stores only public chat-room events that the phone app can see in notifications.
+It does not read KakaoTalk internal databases, hidden identifiers, account IDs, or device data.
+
+## Deploy
+
+```powershell
+.\scripts\apply-supabase-db.ps1
+.\scripts\set-kakao-bot-token.ps1
+.\scripts\deploy-supabase-functions.ps1
+```
+
+## Endpoint
+
+```text
+POST https://<project-ref>.supabase.co/functions/v1/kakao-ops
+Header: x-bot-token: <KAKAO_BOT_INGEST_TOKEN>
+Header: content-type: application/json
+```
+
+## Ingest Events
+
+Join:
+
+```json
+{
+  "action": "ingest",
+  "room_key": "main-openchat",
+  "event_type": "join",
+  "nickname": "배부른 춘식이",
+  "occurred_at": "2026-06-09T10:00:00+09:00"
+}
+```
+
+Leave:
+
+```json
+{
+  "action": "ingest",
+  "room_key": "main-openchat",
+  "event_type": "leave",
+  "nickname": "배부른 춘식이"
+}
+```
+
+Rename:
+
+```json
+{
+  "action": "ingest",
+  "room_key": "main-openchat",
+  "event_type": "rename",
+  "old_nickname": "배부른 춘식이",
+  "new_nickname": "긁적이는 춘식이"
+}
+```
+
+Message:
+
+```json
+{
+  "action": "ingest",
+  "room_key": "main-openchat",
+  "event_type": "message",
+  "nickname": "긁적이는 춘식이",
+  "message_text": "안녕하세요"
+}
+```
+
+When a join is ingested, the response includes `suspicion_candidates` for recent leavers with similar nicknames.
+Treat those as review hints, not confirmed identity.
+
+## Lookup
+
+```json
+{
+  "action": "lookup",
+  "room_key": "main-openchat",
+  "nickname": "춘식이"
+}
+```
+
+The response contains:
+
+- aliases
+- join and leave counts
+- nickname changes
+- recent events
+- admin notes
+
+## Admin Notes
+
+```json
+{
+  "action": "note",
+  "room_key": "main-openchat",
+  "nickname": "긁적이는 춘식이",
+  "severity": "watch",
+  "note": "관리자 확인 필요",
+  "created_by": "admin"
+}
+```
+
+## Manual Merge
+
+Use this only after an admin confirms two records should be treated as the same public-history record.
+
+```json
+{
+  "action": "merge",
+  "source_person_id": "<old-person-id>",
+  "target_person_id": "<kept-person-id>"
+}
+```
+
+## Android Listener Shape
+
+The phone app should use `NotificationListenerService`, parse KakaoTalk notification text, and send only the visible text-derived event.
+
+Suggested parser mapping:
+
+- `(.+)님이 들어왔습니다` -> `join`
+- `(.+)님이 나갔습니다` -> `leave`
+- `(.+)님이 (.+)님으로 변경되었습니다` -> `rename`
+- message notification title/body -> `message`
+
+Keep a local queue and retry failed requests so the bot does not lose events when the network is unstable.

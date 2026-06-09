@@ -12,6 +12,9 @@ Write-Host "Linking Supabase project: $ProjectRef"
 Write-Host "Setting fast OpenAI model"
 & $Supabase secrets set "OPENAI_MODEL=gpt-4.1-nano" --project-ref $ProjectRef
 
+Write-Host "KAKAO_BOT_INGEST_TOKEN is required for kakao-ops."
+Write-Host "Run .\scripts\set-kakao-bot-token.ps1 once before using the Kakao listener."
+
 Write-Host "Deploying start-event function"
 & $Supabase functions deploy start-event
 
@@ -26,5 +29,8 @@ Write-Host "Deploying admin-manage-user function"
 
 Write-Host "Deploying game2-action function"
 & $Supabase functions deploy game2-action
+
+Write-Host "Deploying kakao-ops function"
+& $Supabase functions deploy kakao-ops
 
 Write-Host "Done. Supabase Edge Functions are deployed."
