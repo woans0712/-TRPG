@@ -5,3 +5,7 @@ server.*.log
 public/supabase-config.local.js
 tools/
 supabase/.temp/
+android-kakao-listener/.gradle/
+android-kakao-listener/build/
+android-kakao-listener/app/build/
+*.apk

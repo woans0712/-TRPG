@@ -116,7 +116,8 @@ Use this only after an admin confirms two records should be treated as the same 
 
 ## Android Listener Shape
 
-The phone app should use `NotificationListenerService`, parse KakaoTalk notification text, and send only the visible text-derived event.
+This repo includes a starter Android project in `android-kakao-listener/`.
+The phone app uses `NotificationListenerService`, parses KakaoTalk notification text, and sends only the visible text-derived event.
 
 Suggested parser mapping:
 
@@ -126,3 +127,17 @@ Suggested parser mapping:
 - message notification title/body -> `message`
 
 Keep a local queue and retry failed requests so the bot does not lose events when the network is unstable.
+
+## Build The Android App
+
+Open `android-kakao-listener/` in Android Studio, then build/install the `app` module.
+
+After installing:
+
+1. Open the app.
+2. Set `x-bot-token` to the same token saved by `scripts/set-kakao-bot-token.ps1`.
+3. Keep the default endpoint unless the Supabase project changes.
+4. Set `room_key` to a stable room name such as `main-openchat`.
+5. Tap save.
+6. Tap notification access settings and allow `Kakao Ops Listener`.
+7. Send a test event from the app.
