@@ -398,7 +398,6 @@ serve(async (req) => {
           : action === "note" ? await note(supabase, body)
             : action === "command" ? await handleCommand(body, {
               lookup: (payload) => lookup(supabase, payload),
-              note: (payload) => note(supabase, payload),
             })
               : await mergePeople(supabase, body);
 

@@ -174,9 +174,6 @@ Supported commands:
 /조회 닉네임
 /기록 닉네임
 /닉변 닉네임
-/주의 닉네임 내용
-/메모 닉네임 내용
-/차단 닉네임 내용
 ```
 
 Command replies are generated from the same public notification history stored by `kakao-ops`.

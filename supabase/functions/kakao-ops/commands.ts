@@ -2,7 +2,6 @@ type CommandBody = Record<string, unknown>;
 
 type CommandDeps = {
   lookup: (body: CommandBody) => Promise<unknown>;
-  note: (body: CommandBody) => Promise<unknown>;
 };
 
 type AliasGroup = {
@@ -41,24 +40,6 @@ export const COMMANDS: AliasGroup[] = [
       return formatLookup(nickname, result);
     },
   },
-  {
-    aliases: ["/주의", "!주의"],
-    usage: "/주의 닉네임 내용",
-    description: "대상에게 주의 메모를 저장합니다.",
-    run: async (ctx) => saveNote(ctx, "watch"),
-  },
-  {
-    aliases: ["/메모", "!메모"],
-    usage: "/메모 닉네임 내용",
-    description: "대상에게 일반 메모를 저장합니다.",
-    run: async (ctx) => saveNote(ctx, "info"),
-  },
-  {
-    aliases: ["/차단", "!차단"],
-    usage: "/차단 닉네임 내용",
-    description: "대상에게 차단 메모를 저장합니다.",
-    run: async (ctx) => saveNote(ctx, "block"),
-  },
 ];
 
 export function isCommandText(value: unknown) {
@@ -85,21 +66,6 @@ function helpReply() {
     "명령어",
     ...COMMANDS.map((item) => `${item.usage} - ${item.description}`),
   ].join("\n");
-}
-
-async function saveNote(ctx: CommandContext, severity: "info" | "watch" | "block") {
-  const nickname = ctx.args[0];
-  const note = ctx.args.slice(1).join(" ").trim();
-  if (!nickname || !note) return `사용법: ${ctx.command} 닉네임 내용`;
-
-  await ctx.deps.note({
-    ...ctx.body,
-    nickname,
-    severity,
-    note,
-    created_by: String(ctx.body.nickname || "android-bot"),
-  });
-  return `메모 저장 완료: ${nickname}`;
 }
 
 function formatLookup(query: string, raw: unknown) {
