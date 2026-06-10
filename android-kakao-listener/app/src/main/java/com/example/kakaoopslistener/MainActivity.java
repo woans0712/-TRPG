@@ -170,6 +170,11 @@ public class MainActivity extends Activity {
                 int sent = 0;
                 int skipped = 0;
                 int failed = 0;
+                int deferred = 0;
+                int consecutiveFailures = 0;
+                boolean sendingPaused = false;
+                int parsedTotal = messages.size();
+                runOnUiThread(() -> statusText.setText("Parsed " + parsedTotal + " messages. Saving locally..."));
 
                 for (ImportedMessage message : messages) {
                     if (message.nickname.isEmpty() || message.messageText.isEmpty()) {
@@ -184,12 +189,41 @@ public class MainActivity extends Activity {
                         continue;
                     }
                     saved += 1;
-                    try {
-                        BotClient.send(this, roomKey, event, "chat_export", dedupeKey);
-                        LocalEventStore.markSent(this, dedupeKey);
-                        sent += 1;
-                    } catch (Exception error) {
-                        failed += 1;
+                    if (sendingPaused) {
+                        deferred += 1;
+                    } else {
+                        try {
+                            BotClient.send(this, roomKey, event, "chat_export", dedupeKey);
+                            LocalEventStore.markSent(this, dedupeKey);
+                            sent += 1;
+                            consecutiveFailures = 0;
+                        } catch (Exception error) {
+                            failed += 1;
+                            consecutiveFailures += 1;
+                            if (consecutiveFailures >= 3) {
+                                sendingPaused = true;
+                            }
+                        }
+                    }
+
+                    int processed = saved + skipped;
+                    if (processed % 10 == 0 || processed == parsedTotal) {
+                        int progressSaved = saved;
+                        int progressSent = sent;
+                        int progressSkipped = skipped;
+                        int progressFailed = failed;
+                        int progressDeferred = deferred;
+                        boolean progressPaused = sendingPaused;
+                        runOnUiThread(() -> statusText.setText(
+                            "Importing chat export...\nparsed=" + parsedTotal
+                                + ", processed=" + processed
+                                + ", saved=" + progressSaved
+                                + ", sent=" + progressSent
+                                + ", skipped=" + progressSkipped
+                                + ", failed=" + progressFailed
+                                + ", deferred=" + progressDeferred
+                                + (progressPaused ? "\nServer sync paused after repeated failures." : "")
+                        ));
                     }
                 }
 
@@ -197,6 +231,8 @@ public class MainActivity extends Activity {
                 int finalSent = sent;
                 int finalSkipped = skipped;
                 int finalFailed = failed;
+                int finalDeferred = deferred;
+                boolean finalPaused = sendingPaused;
                 int parsed = messages.size();
                 runOnUiThread(() -> statusText.setText(
                     "Import done\nparsed=" + parsed
@@ -204,6 +240,8 @@ public class MainActivity extends Activity {
                         + ", sent=" + finalSent
                         + ", skipped=" + finalSkipped
                         + ", failed=" + finalFailed
+                        + ", deferred=" + finalDeferred
+                        + (finalPaused ? "\nServer sync paused. Local DB save is done." : "")
                         + "\n" + parseResult.debug
                 ));
             } catch (Exception error) {
