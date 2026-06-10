@@ -163,7 +163,9 @@ public class MainActivity extends Activity {
         statusText.setText("Importing chat export...");
         executor.execute(() -> {
             try {
-                List<ImportedMessage> messages = parseBest(readBytes(uri));
+                byte[] bytes = readBytes(uri);
+                ImportParseResult parseResult = parseBest(bytes);
+                List<ImportedMessage> messages = parseResult.messages;
                 int saved = 0;
                 int sent = 0;
                 int skipped = 0;
@@ -202,6 +204,7 @@ public class MainActivity extends Activity {
                         + ", sent=" + finalSent
                         + ", skipped=" + finalSkipped
                         + ", failed=" + finalFailed
+                        + "\n" + parseResult.debug
                 ));
             } catch (Exception error) {
                 runOnUiThread(() -> statusText.setText("Import failed\n" + error.getMessage()));
@@ -222,20 +225,59 @@ public class MainActivity extends Activity {
         }
     }
 
-    private List<ImportedMessage> parseBest(byte[] bytes) {
+    private ImportParseResult parseBest(byte[] bytes) {
         Charset[] charsets = new Charset[] {
             StandardCharsets.UTF_8,
             Charset.forName("MS949"),
             Charset.forName("EUC-KR"),
-            StandardCharsets.UTF_16
+            StandardCharsets.UTF_16,
+            StandardCharsets.UTF_16LE,
+            StandardCharsets.UTF_16BE
         };
 
+        StringBuilder debug = new StringBuilder();
+        debug.append("bytes=").append(bytes.length);
         List<ImportedMessage> best = ChatExportParser.parse(new String(bytes, StandardCharsets.UTF_8));
+        String bestCharset = StandardCharsets.UTF_8.name();
+        String bestText = new String(bytes, StandardCharsets.UTF_8);
         for (Charset charset : charsets) {
-            List<ImportedMessage> parsed = ChatExportParser.parse(new String(bytes, charset));
-            if (parsed.size() > best.size()) best = parsed;
+            String text = new String(bytes, charset);
+            List<ImportedMessage> parsed = ChatExportParser.parse(text);
+            debug.append("\n").append(charset.name()).append(" parsed=").append(parsed.size());
+            if (parsed.size() > best.size()) {
+                best = parsed;
+                bestCharset = charset.name();
+                bestText = text;
+            }
         }
-        return best;
+        debug.append("\nbest=").append(bestCharset);
+        debug.append("\nfirst=").append(firstLines(bestText));
+        return new ImportParseResult(best, debug.toString());
+    }
+
+    private static String firstLines(String text) {
+        String[] lines = text.replace("\r\n", "\n").replace('\r', '\n').split("\n");
+        StringBuilder result = new StringBuilder();
+        int count = 0;
+        for (String raw : lines) {
+            String line = raw.trim();
+            if (line.isEmpty()) continue;
+            if (result.length() > 0) result.append(" | ");
+            result.append(line.length() > 70 ? line.substring(0, 70) : line);
+            count += 1;
+            if (count >= 3) break;
+        }
+        return result.toString();
+    }
+
+    private static final class ImportParseResult {
+        final List<ImportedMessage> messages;
+        final String debug;
+
+        ImportParseResult(List<ImportedMessage> messages, String debug) {
+            this.messages = messages;
+            this.debug = debug;
+        }
     }
 
     private static String sha256(String value) throws Exception {
