@@ -4,7 +4,7 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { handleCommand } from "./commands.ts";
 
 type EventType = "join" | "leave" | "rename" | "message";
-type Action = "ingest" | "ingest_many" | "lookup" | "note" | "merge" | "command";
+type Action = "ingest" | "ingest_many" | "lookup" | "note" | "merge" | "command" | "link_nicknames";
 type SupabaseClient = ReturnType<typeof createClient>;
 
 type Person = {
@@ -393,7 +393,7 @@ async function lookup(supabase: SupabaseClient, body: Record<string, unknown>) {
   if (!nickname) throw new Error("nickname is required.");
 
   const room = await ensureRoom(supabase, roomKey);
-  const { data: aliases, error: aliasError } = await supabase
+  const { data: matchedAliases, error: aliasError } = await supabase
     .from("kakao_aliases")
     .select("person_id,nickname,first_seen_at,last_seen_at")
     .eq("room_id", room.id)
@@ -402,8 +402,16 @@ async function lookup(supabase: SupabaseClient, body: Record<string, unknown>) {
     .limit(20);
   if (aliasError) throw aliasError;
 
-  const personIds = [...new Set((aliases || []).map((alias) => alias.person_id))];
+  const personIds = [...new Set((matchedAliases || []).map((alias) => alias.person_id))];
   if (personIds.length === 0) return { people: [] };
+
+  const { data: aliases, error: allAliasError } = await supabase
+    .from("kakao_aliases")
+    .select("person_id,nickname,first_seen_at,last_seen_at")
+    .eq("room_id", room.id)
+    .in("person_id", personIds)
+    .order("last_seen_at", { ascending: false });
+  if (allAliasError) throw allAliasError;
 
   const { data: people, error: peopleError } = await supabase
     .from("kakao_people")
@@ -545,6 +553,48 @@ async function mergePeople(supabase: SupabaseClient, body: Record<string, unknow
   return { merged: true, source_person_id: sourceId, target_person_id: targetId };
 }
 
+async function linkNicknames(supabase: SupabaseClient, body: Record<string, unknown>) {
+  const room = await ensureRoom(supabase, normalizeNickname(body.room_key || "main"));
+  const rawNicknames = Array.isArray(body.nicknames) ? body.nicknames : [];
+  const nicknames = [...new Set(rawNicknames.map(normalizeNickname).filter(Boolean))];
+  if (nicknames.length < 2) throw new Error("At least two nicknames are required.");
+
+  const at = nowIso();
+  const targetNickname = nicknames[nicknames.length - 1];
+  let target = await findPersonByNickname(supabase, room.id, targetNickname);
+  if (!target) target = await createPerson(supabase, room.id, targetNickname, at);
+
+  for (const nickname of nicknames) {
+    await upsertAlias(supabase, room.id, target.id, nickname, at);
+  }
+
+  for (let index = 0; index < nicknames.length - 1; index += 1) {
+    const oldNickname = nicknames[index];
+    const { error } = await supabase
+      .from("kakao_nickname_links")
+      .upsert({
+        room_id: room.id,
+        old_nickname: oldNickname,
+        new_nickname: targetNickname,
+        fingerprint: `manual|${oldNickname}|${targetNickname}`,
+        message_text: "manual nickname link",
+        occurred_at: at,
+        reason: "manual_link",
+      }, { onConflict: "room_id,old_nickname,new_nickname,fingerprint" });
+    if (error) throw error;
+  }
+
+  const { data: updated, error: updateError } = await supabase
+    .from("kakao_people")
+    .update({ current_nickname: targetNickname, last_seen_at: at })
+    .eq("id", target.id)
+    .select("id,first_nickname,current_nickname,join_count,leave_count,last_seen_at")
+    .single();
+  if (updateError) throw updateError;
+
+  return { linked: true, nicknames, person: updated };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -556,15 +606,17 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const action = String(body.action || "lookup") as Action;
 
-    if (!["ingest", "ingest_many", "lookup", "note", "merge", "command"].includes(action)) throw new Error("Unsupported action.");
+    if (!["ingest", "ingest_many", "lookup", "note", "merge", "command", "link_nicknames"].includes(action)) throw new Error("Unsupported action.");
 
     const data =
       action === "ingest" ? await ingest(supabase, body)
         : action === "ingest_many" ? await ingestMany(supabase, body)
           : action === "lookup" ? await lookup(supabase, body)
             : action === "note" ? await note(supabase, body)
+              : action === "link_nicknames" ? await linkNicknames(supabase, body)
               : action === "command" ? await handleCommand(body, {
                 lookup: (payload) => lookup(supabase, payload),
+                linkNicknames: (payload) => linkNicknames(supabase, payload),
               })
                 : await mergePeople(supabase, body);
 

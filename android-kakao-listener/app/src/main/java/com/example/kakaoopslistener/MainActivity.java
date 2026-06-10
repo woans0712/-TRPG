@@ -170,8 +170,10 @@ public class MainActivity extends Activity {
                 int saved = 0;
                 int sent = 0;
                 int skipped = 0;
+                int duplicate = 0;
                 int failed = 0;
                 int deferred = 0;
+                String lastError = "";
                 int parsedTotal = messages.size();
                 List<BotClient.BatchEvent> uploadQueue = new ArrayList<>();
                 runOnUiThread(() -> statusText.setText("Parsed " + parsedTotal + " messages. Saving locally..."));
@@ -185,7 +187,7 @@ public class MainActivity extends Activity {
                     String dedupeKey = "chat_export|" + roomKey + "|" + message.occurredAt + "|" + sha256(message.nickname + "\n" + message.messageText);
                     long rowId = LocalEventStore.save(this, roomKey, event, dedupeKey, "chat_export");
                     if (rowId == -1) {
-                        skipped += 1;
+                        duplicate += 1;
                         continue;
                     }
                     saved += 1;
@@ -224,6 +226,7 @@ public class MainActivity extends Activity {
                         sent += chunk.size();
                         consecutiveBatchFailures = 0;
                     } catch (Exception error) {
+                        lastError = error.getMessage();
                         failed += chunk.size();
                         consecutiveBatchFailures += 1;
                         if (consecutiveBatchFailures >= 2) {
@@ -245,8 +248,10 @@ public class MainActivity extends Activity {
                 int finalSaved = saved;
                 int finalSent = sent;
                 int finalSkipped = skipped;
+                int finalDuplicate = duplicate;
                 int finalFailed = failed;
                 int finalDeferred = deferred;
+                String finalLastError = lastError;
                 boolean finalPaused = deferred > 0;
                 int parsed = messages.size();
                 runOnUiThread(() -> statusText.setText(
@@ -254,8 +259,10 @@ public class MainActivity extends Activity {
                         + ", saved=" + finalSaved
                         + ", sent=" + finalSent
                         + ", skipped=" + finalSkipped
+                        + ", duplicate=" + finalDuplicate
                         + ", failed=" + finalFailed
                         + ", deferred=" + finalDeferred
+                        + (finalLastError == null || finalLastError.isEmpty() ? "" : "\nlastError=" + finalLastError)
                         + (finalPaused ? "\nServer sync paused. Local DB save is done." : "")
                         + "\n" + parseResult.debug
                 ));
