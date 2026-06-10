@@ -19,6 +19,7 @@ import java.io.InputStream;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -171,9 +172,8 @@ public class MainActivity extends Activity {
                 int skipped = 0;
                 int failed = 0;
                 int deferred = 0;
-                int consecutiveFailures = 0;
-                boolean sendingPaused = false;
                 int parsedTotal = messages.size();
+                List<BotClient.BatchEvent> uploadQueue = new ArrayList<>();
                 runOnUiThread(() -> statusText.setText("Parsed " + parsedTotal + " messages. Saving locally..."));
 
                 for (ImportedMessage message : messages) {
@@ -189,42 +189,57 @@ public class MainActivity extends Activity {
                         continue;
                     }
                     saved += 1;
-                    if (sendingPaused) {
-                        deferred += 1;
-                    } else {
-                        try {
-                            BotClient.send(this, roomKey, event, "chat_export", dedupeKey);
-                            LocalEventStore.markSent(this, dedupeKey);
-                            sent += 1;
-                            consecutiveFailures = 0;
-                        } catch (Exception error) {
-                            failed += 1;
-                            consecutiveFailures += 1;
-                            if (consecutiveFailures >= 3) {
-                                sendingPaused = true;
-                            }
+                    uploadQueue.add(new BotClient.BatchEvent(event, dedupeKey, "chat_export"));
+
+                    int processed = saved + skipped;
+                    if (processed % 100 == 0 || processed == parsedTotal) {
+                        int progressSaved = saved;
+                        int progressSkipped = skipped;
+                        runOnUiThread(() -> statusText.setText(
+                            "Saving chat export locally...\nparsed=" + parsedTotal
+                                + ", processed=" + processed
+                                + ", saved=" + progressSaved
+                                + ", skipped=" + progressSkipped
+                        ));
+                    }
+                }
+
+                int savedForSync = uploadQueue.size();
+                int skippedForSync = skipped;
+                runOnUiThread(() -> statusText.setText(
+                    "Local save done. Syncing in batches...\nparsed=" + parsedTotal
+                        + ", saved=" + savedForSync
+                        + ", skipped=" + skippedForSync
+                ));
+
+                int consecutiveBatchFailures = 0;
+                for (int start = 0; start < uploadQueue.size(); start += 50) {
+                    int end = Math.min(start + 50, uploadQueue.size());
+                    List<BotClient.BatchEvent> chunk = uploadQueue.subList(start, end);
+                    try {
+                        BotClient.sendBatch(this, roomKey, chunk);
+                        for (BotClient.BatchEvent item : chunk) {
+                            LocalEventStore.markSent(this, item.dedupeKey);
+                        }
+                        sent += chunk.size();
+                        consecutiveBatchFailures = 0;
+                    } catch (Exception error) {
+                        failed += chunk.size();
+                        consecutiveBatchFailures += 1;
+                        if (consecutiveBatchFailures >= 2) {
+                            deferred = uploadQueue.size() - sent;
+                            break;
                         }
                     }
 
-                    int processed = saved + skipped;
-                    if (processed % 10 == 0 || processed == parsedTotal) {
-                        int progressSaved = saved;
-                        int progressSent = sent;
-                        int progressSkipped = skipped;
-                        int progressFailed = failed;
-                        int progressDeferred = deferred;
-                        boolean progressPaused = sendingPaused;
-                        runOnUiThread(() -> statusText.setText(
-                            "Importing chat export...\nparsed=" + parsedTotal
-                                + ", processed=" + processed
-                                + ", saved=" + progressSaved
-                                + ", sent=" + progressSent
-                                + ", skipped=" + progressSkipped
-                                + ", failed=" + progressFailed
-                                + ", deferred=" + progressDeferred
-                                + (progressPaused ? "\nServer sync paused after repeated failures." : "")
-                        ));
-                    }
+                    int progressSent = sent;
+                    int progressFailed = failed;
+                    runOnUiThread(() -> statusText.setText(
+                        "Syncing batches...\nparsed=" + parsedTotal
+                            + ", saved=" + uploadQueue.size()
+                            + ", sent=" + progressSent
+                            + ", failed=" + progressFailed
+                    ));
                 }
 
                 int finalSaved = saved;
@@ -232,7 +247,7 @@ public class MainActivity extends Activity {
                 int finalSkipped = skipped;
                 int finalFailed = failed;
                 int finalDeferred = deferred;
-                boolean finalPaused = sendingPaused;
+                boolean finalPaused = deferred > 0;
                 int parsed = messages.size();
                 runOnUiThread(() -> statusText.setText(
                     "Import done\nparsed=" + parsed

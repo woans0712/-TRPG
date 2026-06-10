@@ -4,7 +4,7 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { handleCommand } from "./commands.ts";
 
 type EventType = "join" | "leave" | "rename" | "message";
-type Action = "ingest" | "lookup" | "note" | "merge" | "command";
+type Action = "ingest" | "ingest_many" | "lookup" | "note" | "merge" | "command";
 type SupabaseClient = ReturnType<typeof createClient>;
 
 type Person = {
@@ -279,6 +279,36 @@ async function ingest(supabase: SupabaseClient, body: Record<string, unknown>) {
   return { event_id: event.id, person: updated, suspicion_candidates: candidates };
 }
 
+async function ingestMany(supabase: SupabaseClient, body: Record<string, unknown>) {
+  const rawEvents = Array.isArray(body.events) ? body.events : [];
+  if (rawEvents.length === 0) throw new Error("events is required.");
+  if (rawEvents.length > 100) throw new Error("events can contain at most 100 items.");
+
+  const results = [];
+  let inserted = 0;
+  let duplicate = 0;
+  let failed = 0;
+
+  for (const rawEvent of rawEvents) {
+    try {
+      const eventBody = rawEvent && typeof rawEvent === "object" ? rawEvent as Record<string, unknown> : {};
+      const result = await ingest(supabase, {
+        ...eventBody,
+        room_key: eventBody.room_key || body.room_key,
+        room_title: eventBody.room_title || body.room_title,
+      });
+      if ((result as Record<string, unknown>).duplicate) duplicate += 1;
+      else inserted += 1;
+      results.push(result);
+    } catch (error) {
+      failed += 1;
+      results.push({ ok: false, error: String(error.message || error) });
+    }
+  }
+
+  return { inserted, duplicate, failed, total: rawEvents.length, results };
+}
+
 function messageFingerprint(messageText: string, at: string) {
   const date = new Date(at);
   const minute = Number.isNaN(date.getTime())
@@ -526,16 +556,17 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const action = String(body.action || "lookup") as Action;
 
-    if (!["ingest", "lookup", "note", "merge", "command"].includes(action)) throw new Error("Unsupported action.");
+    if (!["ingest", "ingest_many", "lookup", "note", "merge", "command"].includes(action)) throw new Error("Unsupported action.");
 
     const data =
       action === "ingest" ? await ingest(supabase, body)
-        : action === "lookup" ? await lookup(supabase, body)
-          : action === "note" ? await note(supabase, body)
-            : action === "command" ? await handleCommand(body, {
-              lookup: (payload) => lookup(supabase, payload),
-            })
-              : await mergePeople(supabase, body);
+        : action === "ingest_many" ? await ingestMany(supabase, body)
+          : action === "lookup" ? await lookup(supabase, body)
+            : action === "note" ? await note(supabase, body)
+              : action === "command" ? await handleCommand(body, {
+                lookup: (payload) => lookup(supabase, payload),
+              })
+                : await mergePeople(supabase, body);
 
     return Response.json({ ok: true, data }, { headers: corsHeaders });
   } catch (error) {

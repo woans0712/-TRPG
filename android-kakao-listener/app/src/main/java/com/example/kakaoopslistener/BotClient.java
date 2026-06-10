@@ -2,6 +2,7 @@ package com.example.kakaoopslistener;
 
 import android.content.Context;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
@@ -35,6 +36,25 @@ final class BotClient {
 
     static String send(Context context, BotEvent event) throws Exception {
         return send(context, SettingsStore.roomKey(context), event);
+    }
+
+    static String sendBatch(Context context, String roomKey, java.util.List<BatchEvent> events) throws Exception {
+        JSONObject json = basePayload(roomKey, "ingest_many");
+        JSONArray array = new JSONArray();
+        for (BatchEvent item : events) {
+            JSONObject eventJson = new JSONObject();
+            eventJson.put("event_type", item.event.eventType);
+            eventJson.put("source", item.source);
+            eventJson.put("dedupe_key", item.dedupeKey);
+            if (!item.event.nickname.isEmpty()) eventJson.put("nickname", item.event.nickname);
+            if (!item.event.oldNickname.isEmpty()) eventJson.put("old_nickname", item.event.oldNickname);
+            if (!item.event.newNickname.isEmpty()) eventJson.put("new_nickname", item.event.newNickname);
+            if (!item.event.messageText.isEmpty()) eventJson.put("message_text", item.event.messageText);
+            if (!item.event.occurredAt.isEmpty()) eventJson.put("occurred_at", item.event.occurredAt);
+            array.put(eventJson);
+        }
+        json.put("events", array);
+        return post(context, json);
     }
 
     static JSONObject lookup(Context context, String roomKey, String nickname) throws Exception {
@@ -98,5 +118,17 @@ final class BotClient {
             throw new IllegalStateException("HTTP " + status + ": " + response);
         }
         return response.toString();
+    }
+
+    static final class BatchEvent {
+        final BotEvent event;
+        final String dedupeKey;
+        final String source;
+
+        BatchEvent(BotEvent event, String dedupeKey, String source) {
+            this.event = event;
+            this.dedupeKey = dedupeKey;
+            this.source = source;
+        }
     }
 }
