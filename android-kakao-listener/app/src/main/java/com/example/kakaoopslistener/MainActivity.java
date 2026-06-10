@@ -16,6 +16,7 @@ import android.widget.Toast;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.List;
@@ -162,8 +163,7 @@ public class MainActivity extends Activity {
         statusText.setText("Importing chat export...");
         executor.execute(() -> {
             try {
-                String text = readText(uri);
-                List<ImportedMessage> messages = ChatExportParser.parse(text);
+                List<ImportedMessage> messages = parseBest(readBytes(uri));
                 int saved = 0;
                 int sent = 0;
                 int skipped = 0;
@@ -209,7 +209,7 @@ public class MainActivity extends Activity {
         });
     }
 
-    private String readText(Uri uri) throws Exception {
+    private byte[] readBytes(Uri uri) throws Exception {
         try (InputStream input = getContentResolver().openInputStream(uri)) {
             if (input == null) throw new IllegalStateException("Could not open selected file.");
             ByteArrayOutputStream output = new ByteArrayOutputStream();
@@ -218,8 +218,24 @@ public class MainActivity extends Activity {
             while ((read = input.read(buffer)) != -1) {
                 output.write(buffer, 0, read);
             }
-            return output.toString(StandardCharsets.UTF_8.name());
+            return output.toByteArray();
         }
+    }
+
+    private List<ImportedMessage> parseBest(byte[] bytes) {
+        Charset[] charsets = new Charset[] {
+            StandardCharsets.UTF_8,
+            Charset.forName("MS949"),
+            Charset.forName("EUC-KR"),
+            StandardCharsets.UTF_16
+        };
+
+        List<ImportedMessage> best = ChatExportParser.parse(new String(bytes, StandardCharsets.UTF_8));
+        for (Charset charset : charsets) {
+            List<ImportedMessage> parsed = ChatExportParser.parse(new String(bytes, charset));
+            if (parsed.size() > best.size()) best = parsed;
+        }
+        return best;
     }
 
     private static String sha256(String value) throws Exception {

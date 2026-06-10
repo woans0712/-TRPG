@@ -21,7 +21,6 @@ type CommandContext = {
 
 const maxReplyLength = 900;
 
-// Edit this list when you want to add, remove, or rename bot commands.
 export const COMMANDS: AliasGroup[] = [
   {
     aliases: ["/도움", "/help", "!도움"],
@@ -32,9 +31,9 @@ export const COMMANDS: AliasGroup[] = [
   {
     aliases: ["/조회", "/기록", "/닉변", "!조회"],
     usage: "/조회 닉네임",
-    description: "닉네임 히스토리, 입퇴장 횟수, 최근 메모를 조회합니다.",
+    description: "닉네임 히스토리, 입퇴장 횟수, 메시지 수, 닉변 추적 결과를 조회합니다.",
     run: async (ctx) => {
-      const nickname = ctx.args[0];
+      const nickname = ctx.args.join(" ").trim();
       if (!nickname) return `사용법: ${ctx.command} 닉네임`;
       const result = await ctx.deps.lookup({ ...ctx.body, nickname });
       return formatLookup(nickname, result);
@@ -83,15 +82,16 @@ function formatLookup(query: string, raw: unknown) {
   const aliasNames = aliases.map((alias) => text(alias.nickname)).filter(Boolean);
   const links = Array.isArray(person.nickname_links) ? person.nickname_links as Array<Record<string, unknown>> : [];
   const linkedNames = links.flatMap((link) => [text(link.old_nickname), text(link.new_nickname)]).filter(Boolean);
-  const names = [...new Set([...linkedNames, ...aliasNames])].slice(-8);
+  const names = [...new Set([...linkedNames, ...aliasNames])].slice(-10);
   if (names.length > 0) out.push(`닉네임: ${names.join(", ")}`);
 
   const events = Array.isArray(person.events) ? person.events as Array<Record<string, unknown>> : [];
   const messageCount = events.filter((event) => text(event.event_type) === "message").length;
   out.push(`메시지 ${messageCount}`);
+
   if (links.length > 0) {
-    out.push("추정 닉변:");
-    for (const link of links.slice(-5)) {
+    out.push("닉변 추적:");
+    for (const link of links.slice(-6)) {
       out.push(`- ${text(link.old_nickname)} -> ${text(link.new_nickname)}`);
       out.push(`  근거: ${text(link.message_text)}`);
     }
@@ -99,16 +99,10 @@ function formatLookup(query: string, raw: unknown) {
 
   const renameEvents = events.filter((event) => text(event.event_type) === "rename").slice(0, 3);
   if (renameEvents.length > 0) {
-    out.push("닉변:");
+    out.push("닉변 알림:");
     for (const event of renameEvents) {
       out.push(`- ${text(event.old_nickname)} -> ${text(event.new_nickname)}`);
     }
-  }
-
-  const notes = Array.isArray(person.notes) ? person.notes as Array<Record<string, unknown>> : [];
-  if (notes.length > 0) {
-    const note = notes[0];
-    out.push(`최근메모[${text(note.severity)}]: ${text(note.note)}`);
   }
 
   return out.join("\n");

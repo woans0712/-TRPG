@@ -14,6 +14,9 @@ final class ChatExportParser {
     private static final Pattern DATE_KO = Pattern.compile(".*?(\\d{4})\\s*\\uB144\\s*(\\d{1,2})\\s*\\uC6D4\\s*(\\d{1,2})\\s*\\uC77C.*");
     private static final Pattern BRACKET_MESSAGE = Pattern.compile("^\\[(.+?)\\]\\s*\\[(\\uC624\\uC804|\\uC624\\uD6C4)\\s*(\\d{1,2}):(\\d{2})\\]\\s*(.*)$");
     private static final Pattern COMMA_MESSAGE = Pattern.compile("^(\\d{4})\\.\\s*(\\d{1,2})\\.\\s*(\\d{1,2})\\.\\s*(\\uC624\\uC804|\\uC624\\uD6C4)\\s*(\\d{1,2}):(\\d{2}),\\s*(.+?)\\s*:\\s*(.*)$");
+    private static final Pattern KOREAN_COMMA_MESSAGE = Pattern.compile("^(\\d{4})\\s*\\uB144\\s*(\\d{1,2})\\s*\\uC6D4\\s*(\\d{1,2})\\s*\\uC77C\\s*(\\uC624\\uC804|\\uC624\\uD6C4)\\s*(\\d{1,2}):(\\d{2}),\\s*(.+?)\\s*:\\s*(.*)$");
+    private static final Pattern DASH_COMMA_MESSAGE = Pattern.compile("^(\\d{4})-(\\d{1,2})-(\\d{1,2})\\s*(\\uC624\\uC804|\\uC624\\uD6C4)\\s*(\\d{1,2}):(\\d{2}),\\s*(.+?)\\s*:\\s*(.*)$");
+    private static final Pattern TIME_COMMA_MESSAGE = Pattern.compile("^(\\uC624\\uC804|\\uC624\\uD6C4)\\s*(\\d{1,2}):(\\d{2}),\\s*(.+?)\\s*:\\s*(.*)$");
 
     private ChatExportParser() {}
 
@@ -40,12 +43,21 @@ final class ChatExportParser {
 
             Matcher comma = COMMA_MESSAGE.matcher(line);
             if (comma.matches()) {
-                LocalDate date = LocalDate.of(
-                    Integer.parseInt(comma.group(1)),
-                    Integer.parseInt(comma.group(2)),
-                    Integer.parseInt(comma.group(3))
-                );
-                last = build(date, comma.group(4), comma.group(5), comma.group(6), comma.group(7), comma.group(8));
+                last = buildFromDatedLine(comma);
+                messages.add(last);
+                continue;
+            }
+
+            Matcher koreanComma = KOREAN_COMMA_MESSAGE.matcher(line);
+            if (koreanComma.matches()) {
+                last = buildFromDatedLine(koreanComma);
+                messages.add(last);
+                continue;
+            }
+
+            Matcher dashComma = DASH_COMMA_MESSAGE.matcher(line);
+            if (dashComma.matches()) {
+                last = buildFromDatedLine(dashComma);
                 messages.add(last);
                 continue;
             }
@@ -57,6 +69,13 @@ final class ChatExportParser {
                 continue;
             }
 
+            Matcher timeComma = TIME_COMMA_MESSAGE.matcher(line);
+            if (timeComma.matches() && currentDate != null) {
+                last = build(currentDate, timeComma.group(1), timeComma.group(2), timeComma.group(3), timeComma.group(4), timeComma.group(5));
+                messages.add(last);
+                continue;
+            }
+
             if (last != null && !looksLikeSystemLine(line)) {
                 ImportedMessage merged = new ImportedMessage(last.nickname, last.messageText + "\n" + line, last.occurredAt);
                 messages.set(messages.size() - 1, merged);
@@ -64,6 +83,15 @@ final class ChatExportParser {
             }
         }
         return messages;
+    }
+
+    private static ImportedMessage buildFromDatedLine(Matcher matcher) {
+        LocalDate date = LocalDate.of(
+            Integer.parseInt(matcher.group(1)),
+            Integer.parseInt(matcher.group(2)),
+            Integer.parseInt(matcher.group(3))
+        );
+        return build(date, matcher.group(4), matcher.group(5), matcher.group(6), matcher.group(7), matcher.group(8));
     }
 
     private static ImportedMessage build(LocalDate date, String ampm, String hourText, String minuteText, String nickname, String message) {
