@@ -4,11 +4,12 @@
     "scriptName": "뚜비",
     "enabled": true,
     "allowedRooms": [
-      "뚜비랜드"
+      "뚜비랜드",
+      "JM"
     ],
     "discordRelay": {
       "enabled": true,
-      "targetRoom": "뚜비랜드",
+      "targetRoom": "JM",
       "queuePath": "/sdcard/msgbot/Bots/뚜비/discord-kakao-queue.jsonl",
       "processedPath": "/sdcard/msgbot/Bots/뚜비/discord-kakao-processed.json",
       "pollSeconds": 5,

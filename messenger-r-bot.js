@@ -3,21 +3,26 @@
 function response(room, msg, sender, isGroupChat, replier, imageDB, packageName) {
   ensureDiscordRelayStarted();
 
-  if (!isAllowedRoom(room)) return;
-
   var text = String(msg || "").trim();
+  appendEventLog(room, sender, text, packageName);
+
   if (text === "/핑" || text === "!핑" || text === "/ping" || text === "!ping") {
     replier.reply("뚜비랜드 릴레이 작동중");
+    pollDiscordRelayQueue();
+    return;
   }
+
+  if (!isAllowedRoom(room)) return;
 }
 
 var SETTINGS_PATH = "/sdcard/msgbot/Bots/뚜비/bot-settings.json";
+var EVENT_LOG_PATH = "/sdcard/msgbot/Bots/뚜비/codex-event-log.jsonl";
 var DEFAULT_SETTINGS = {
   messengerR: {
-    allowedRooms: ["뚜비랜드"],
+    allowedRooms: ["뚜비랜드", "JM"],
     discordRelay: {
       enabled: true,
-      targetRoom: "뚜비랜드",
+      targetRoom: "JM",
       queuePath: "/sdcard/msgbot/Bots/뚜비/discord-kakao-queue.jsonl",
       processedPath: "/sdcard/msgbot/Bots/뚜비/discord-kakao-processed.json",
       pollSeconds: 5,
@@ -203,6 +208,26 @@ function logDebug(message) {
   try {
     if (typeof Log !== "undefined" && Log.d) Log.d(String(message));
   } catch (ignored) {
+  }
+}
+
+function appendEventLog(room, sender, msg, packageName) {
+  try {
+    var item = {
+      time: nowText(),
+      room: String(room || ""),
+      sender: String(sender || ""),
+      msg: String(msg || ""),
+      packageName: String(packageName || "")
+    };
+    var file = new java.io.File(EVENT_LOG_PATH);
+    var parent = file.getParentFile();
+    if (parent && !parent.exists()) parent.mkdirs();
+    var writer = new java.io.OutputStreamWriter(new java.io.FileOutputStream(file, true), "UTF-8");
+    writer.write(JSON.stringify(item) + "\n");
+    writer.close();
+  } catch (error) {
+    logDebug("event log error: " + error);
   }
 }
 
