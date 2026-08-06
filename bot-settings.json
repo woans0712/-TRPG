@@ -1,7 +1,18 @@
 {
-  "_note": "MessengerR only. No commands or features are currently enabled.",
+  "_note": "MessengerR only. Kakao replies are restricted to the configured rooms.",
   "messengerR": {
-    "scriptName": "\ub69c\ube44",
-    "enabled": true
+    "scriptName": "뚜비",
+    "enabled": true,
+    "allowedRooms": [
+      "뚜비랜드"
+    ],
+    "discordRelay": {
+      "enabled": true,
+      "targetRoom": "뚜비랜드",
+      "queuePath": "/sdcard/msgbot/Bots/뚜비/discord-kakao-queue.jsonl",
+      "processedPath": "/sdcard/msgbot/Bots/뚜비/discord-kakao-processed.json",
+      "pollSeconds": 5,
+      "maxMessagesPerTick": 5
+    }
   }
 }
