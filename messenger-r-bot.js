@@ -7,8 +7,12 @@ function response(room, msg, sender, isGroupChat, replier, imageDB, packageName)
   appendEventLog(room, sender, text, packageName);
 
   if (text === "/핑" || text === "!핑" || text === "/ping" || text === "!ping") {
-    replier.reply("뚜비랜드 릴레이 작동중");
-    pollDiscordRelayQueue();
+    replyRelayQueue(replier, true);
+    return;
+  }
+
+  if (text === "/relay" || text === "!relay" || text === "/릴레이") {
+    replyRelayQueue(replier, false);
     return;
   }
 
@@ -17,11 +21,13 @@ function response(room, msg, sender, isGroupChat, replier, imageDB, packageName)
 
 var SETTINGS_PATH = "/sdcard/msgbot/Bots/뚜비/bot-settings.json";
 var EVENT_LOG_PATH = "/sdcard/msgbot/Bots/뚜비/codex-event-log.jsonl";
+var RELAY_LOG_PATH = "/sdcard/msgbot/Bots/뚜비/codex-relay-log.jsonl";
 var DEFAULT_SETTINGS = {
   messengerR: {
     allowedRooms: ["뚜비랜드", "JM"],
     discordRelay: {
       enabled: true,
+      autoReplyRoom: false,
       targetRoom: "JM",
       queuePath: "/sdcard/msgbot/Bots/뚜비/discord-kakao-queue.jsonl",
       processedPath: "/sdcard/msgbot/Bots/뚜비/discord-kakao-processed.json",
@@ -102,6 +108,7 @@ function ensureDiscordRelayStarted() {
 function pollDiscordRelayQueue() {
   var config = readRelayConfig();
   if (!config.enabled) return;
+  if (!config.autoReplyRoom) return;
   if (typeof Api === "undefined" || !Api.replyRoom) return;
 
   var queueFile = new java.io.File(config.queuePath);
@@ -126,10 +133,9 @@ function pollDiscordRelayQueue() {
     var id = String(item.id || "");
     if (!id || processed[id]) continue;
 
-    var room = cleanText(item.targetRoom || config.targetRoom || "뚜비랜드");
-    if (!room) continue;
+    var delivered = deliverDiscordRelayItem(config, item);
+    if (!delivered) continue;
 
-    Api.replyRoom(room, formatDiscordRelayMessage(item));
     processed[id] = nowText();
     sent += 1;
 
@@ -137,6 +143,85 @@ function pollDiscordRelayQueue() {
   }
 
   if (sent > 0) writeProcessedState(config.processedPath, processed);
+}
+
+function replyRelayQueue(replier, includeStatus) {
+  try {
+    var result = buildRelayQueueReply(includeStatus);
+    if (!replier || !replier.reply) return;
+
+    replier.reply(result.message);
+    appendRelayLog("replier-batch", "replier", true, "ids=" + result.ids.join(","));
+
+    if (result.ids.length > 0) {
+      var config = readRelayConfig();
+      var processed = readProcessedState(config.processedPath);
+      for (var index = 0; index < result.ids.length; index += 1) {
+        processed[result.ids[index]] = nowText();
+      }
+      writeProcessedState(config.processedPath, processed);
+    }
+  } catch (error) {
+    try {
+      replier.reply("릴레이 오류: " + String(error));
+    } catch (ignored) {
+    }
+    appendRelayLog("replier-batch", "replier", false, String(error));
+  }
+}
+
+function buildRelayQueueReply(includeStatus) {
+  var config = readRelayConfig();
+  if (!config.enabled) {
+    return { message: "릴레이 꺼짐", ids: [] };
+  }
+
+  var queueFile = new java.io.File(config.queuePath);
+  if (!queueFile.exists()) {
+    return {
+      message: includeStatus ? "뚜비랜드 릴레이 작동중\n릴레이 대기 글 없음" : "릴레이 대기 글 없음",
+      ids: []
+    };
+  }
+
+  var lines = String(readTextFile(queueFile) || "").split(/\r?\n/);
+  var processed = readProcessedState(config.processedPath);
+  var max = Number(config.maxMessagesPerTick || 5);
+  var messages = [];
+  var ids = [];
+
+  for (var index = 0; index < lines.length; index += 1) {
+    var line = String(lines[index] || "").trim();
+    if (!line) continue;
+
+    var item;
+    try {
+      item = JSON.parse(line);
+    } catch (parseError) {
+      continue;
+    }
+
+    var id = String(item.id || "");
+    if (!id || processed[id]) continue;
+
+    messages.push(formatDiscordRelayMessage(item));
+    ids.push(id);
+
+    if (ids.length >= max) break;
+  }
+
+  if (!messages.length) {
+    return {
+      message: includeStatus ? "뚜비랜드 릴레이 작동중\n릴레이 대기 글 없음" : "릴레이 대기 글 없음",
+      ids: []
+    };
+  }
+
+  var prefix = includeStatus ? "뚜비랜드 릴레이 작동중\n\n" : "";
+  return {
+    message: prefix + messages.join("\n\n---\n\n"),
+    ids: ids
+  };
 }
 
 function readRelayConfig() {
@@ -154,6 +239,43 @@ function formatDiscordRelayMessage(item) {
   }
   if (item.jumpUrl) parts.push("원문: " + item.jumpUrl);
   return parts.join("\n");
+}
+
+function deliverDiscordRelayItem(config, item) {
+  var rooms = uniqueList([
+    config.targetRoom,
+    item.targetRoom,
+    "JM",
+    "뚜비랜드"
+  ]);
+  var message = formatDiscordRelayMessage(item);
+
+  for (var index = 0; index < rooms.length; index += 1) {
+    var room = cleanText(rooms[index]);
+    if (!room) continue;
+
+    try {
+      var result = Api.replyRoom(room, message);
+      appendRelayLog(item.id, room, result, "");
+      if (result !== false) return true;
+    } catch (error) {
+      appendRelayLog(item.id, room, false, String(error));
+    }
+  }
+
+  return false;
+}
+
+function uniqueList(values) {
+  var seen = {};
+  var result = [];
+  for (var index = 0; index < values.length; index += 1) {
+    var value = cleanText(values[index]);
+    if (!value || seen[value]) continue;
+    seen[value] = true;
+    result.push(value);
+  }
+  return result;
 }
 
 function readProcessedState(path) {
@@ -228,6 +350,25 @@ function appendEventLog(room, sender, msg, packageName) {
     writer.close();
   } catch (error) {
     logDebug("event log error: " + error);
+  }
+}
+
+function appendRelayLog(id, room, result, error) {
+  try {
+    var item = {
+      time: nowText(),
+      id: String(id || ""),
+      room: String(room || ""),
+      result: String(result),
+      error: String(error || "")
+    };
+    var file = new java.io.File(RELAY_LOG_PATH);
+    var parent = file.getParentFile();
+    if (parent && !parent.exists()) parent.mkdirs();
+    var writer = new java.io.OutputStreamWriter(new java.io.FileOutputStream(file, true), "UTF-8");
+    writer.write(JSON.stringify(item) + "\n");
+    writer.close();
+  } catch (ignored) {
   }
 }
 
