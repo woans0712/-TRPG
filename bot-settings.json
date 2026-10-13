@@ -1,20 +1,6 @@
 {
-  "_note": "MessengerR only. Kakao replies are restricted to the configured rooms.",
   "messengerR": {
     "scriptName": "뚜비",
-    "enabled": true,
-    "allowedRooms": [
-      "뚜비랜드",
-      "JM"
-    ],
-    "discordRelay": {
-      "enabled": true,
-      "autoReplyRoom": false,
-      "targetRoom": "JM",
-      "queuePath": "/sdcard/msgbot/Bots/뚜비/discord-kakao-queue.jsonl",
-      "processedPath": "/sdcard/msgbot/Bots/뚜비/discord-kakao-processed.json",
-      "pollSeconds": 5,
-      "maxMessagesPerTick": 5
-    }
+    "enabled": false
   }
 }
